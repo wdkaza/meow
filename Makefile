@@ -1,6 +1,6 @@
 install:
 
-	gcc meow.c -o meow -lX11
+	gcc meow.c -o meow -Wall -Wextra -lX11
 
 	cp meow /usr/bin/meow
 

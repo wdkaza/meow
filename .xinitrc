@@ -1,5 +1,4 @@
 eval "$(dbus-launch --sh-syntax)"
 setxkbmap us &
-//nitrogen --restore &
-kitty &
+nitrogen --restore &
 exec ./meow
