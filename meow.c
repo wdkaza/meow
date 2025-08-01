@@ -3,9 +3,11 @@
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
 #include <X11/cursorfont.h>
-
+#include "config.h"
 // thanks @cococry for some of the code
 // @cococry also insipered me to try to code this 
+// like actually massive props to cococry's code 
+// it helpmed me so much to understand how to even start making a wm
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -20,9 +22,7 @@
 #define MIN(a, b) (((a)<(b))?(a):(b))
 #define MAX(a, b) ((a) > (b) ? (a) : b)
 
-#define BORDER_WIDTH 3
-#define BORDER_COLOR 0xff0000
-#define BG_COLOR 0x0000ff
+
 
 typedef struct {
   float x, y;
@@ -31,6 +31,8 @@ typedef struct {
 typedef struct {
   Window win;
   Window frame;
+  bool fullscreen;
+  Vec2 fullscreenRevertSize;
 } Client;
 
 typedef struct {
@@ -63,8 +65,11 @@ void handleMotionNotify(XEvent *ev);
 void handleKeyPress(XEvent *ev);
 void sendClientMessage(Window w, Atom a);
 Window getFrameWindow(Window w);
+int32_t getClientIndex(Window w);
 bool clientFrameExists(Window w);
 bool clientWindowExists(Window w);
+void unsetFullscreen(Window w);
+void setFullscreen(Window w);
 Atom* findAtomPtrRange(Atom* ptr1, Atom* ptr2, Atom val);
 
 static XWM wm;
@@ -235,9 +240,19 @@ void handleKeyPress(XEvent *ev){
     else{
       XKillClient(wm.display, e->window);
     }
-  }
+ }
   if(e->state & Mod1Mask && e->keycode == XKeysymToKeycode(wm.display, XK_K)){
+    printf("hi\n");
     system("kitty &");
+  }
+  if(e->state & Mod1Mask && e->keycode == XKeysymToKeycode(wm.display, XK_F)){
+    uint32_t clientIndex = getClientIndex(e->window);
+    if(!wm.client_windows[clientIndex].fullscreen){
+      setFullscreen(e->window);
+    }
+    else{
+      unsetFullscreen(e->window);
+    }
   }
 }
 
@@ -247,12 +262,13 @@ void handleKeyRelease(XEvent *ev){
 
 void sendClientMessage(Window w, Atom a){
   XEvent msg = {0};
+  memset(&msg, 0, sizeof(msg));
   msg.xclient.type = ClientMessage;
   msg.xclient.window = w;
   msg.xclient.message_type = wm.ATOM_WM_PROTOCOLS;
   msg.xclient.format = 32;
   msg.xclient.data.l[0] = a;
-  XSendEvent(wm.display, w, false, NoEventMask, &msg);
+  XSendEvent(wm.display, w, false, 0, &msg);
 }
 
 void handleMapRequest(XEvent *ev){
@@ -318,6 +334,43 @@ void xwmWindowUnframe(Window w){
   }
 }
 
+int32_t getClientIndex(Window w){
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+    if(wm.client_windows[i].win == w || wm.client_windows[i].frame == w){
+      return i;
+    }
+  }
+  return -1;
+}
+
+void setFullscreen(Window w){
+  uint32_t clientIndex = getClientIndex(w);
+  if(wm.client_windows[clientIndex].fullscreen) return;
+
+  XWindowAttributes attr;
+  XGetWindowAttributes(wm.display, w, &attr);
+  wm.client_windows[clientIndex].fullscreen = true;
+  wm.client_windows[clientIndex].fullscreenRevertSize = (Vec2){ .x = attr.width, .y = attr.height};
+
+  Window frame = getFrameWindow(w);
+  XSetWindowBorderWidth(wm.display, frame, 0);
+  int screen = DefaultScreen(wm.display);
+  int screenWidth = DisplayWidth(wm.display, screen);
+  int screenHeight = DisplayHeight(wm.display, screen);
+  
+  XMoveResizeWindow(wm.display, frame, 0, 0, screenWidth, screenHeight);
+  XResizeWindow(wm.display, w, screenWidth, screenHeight);
+}
+
+void unsetFullscreen(Window w){
+  uint32_t clientIndex = getClientIndex(w);
+  if(!wm.client_windows[clientIndex].fullscreen) return;
+  wm.client_windows[clientIndex].fullscreen = false;
+  Window frame = getFrameWindow(w);
+  XSetWindowBorderWidth(wm.display, frame, BORDER_WIDTH);
+  XMoveResizeWindow(wm.display, frame, 0, 0, wm.client_windows[clientIndex].fullscreenRevertSize.x, wm.client_windows[clientIndex].fullscreenRevertSize.y); // BUG HERE BUG HERE BUG HERE BUG HERE BUG HERE BUG HERE BUG HERE BUG HERE(we always move window back to 0,0 (x,y) and it should go back ot its position prob, but whatever)
+  XResizeWindow(wm.display, w, wm.client_windows[clientIndex].fullscreenRevertSize.x, wm.client_windows[clientIndex].fullscreenRevertSize.y);
+}
 
 
 Atom* findAtomPtrRange(Atom* ptr1, Atom* ptr2, Atom val){
@@ -373,6 +426,7 @@ void xwmWindowFrame(Window win, bool createdBeforeWindowManager){
   XGrabButton(wm.display, Button3, Mod1Mask, win, false, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, None);
   XGrabKey(wm.display, XKeysymToKeycode(wm.display, XK_Q), Mod1Mask, win, false, GrabModeAsync, GrabModeAsync);
   XGrabKey(wm.display, XKeysymToKeycode(wm.display, XK_K), Mod1Mask, win, false, GrabModeAsync, GrabModeAsync);
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, XK_F), Mod1Mask, win, false, GrabModeAsync, GrabModeAsync); 
   XGrabKey(wm.display, XKeysymToKeycode(wm.display, XK_Tab), Mod1Mask, win, false, GrabModeAsync, GrabModeAsync);
 }
 
