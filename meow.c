@@ -2,7 +2,7 @@
 #include <X11/Xutil.h>
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
-#include <X11/cursorfont.h>
+#include <X11/Xcursor/Xcursor.h>
 #include "config.h"
 // thanks @cococry for some of the code
 // @cococry also insipered me to try to code this 
@@ -98,8 +98,13 @@ XWM xwm_init(){
 void xwm_run(){
   wm.running = true;
 
-  XSelectInput(wm.display, wm.root, SubstructureRedirectMask | SubstructureNotifyMask);
+  XSelectInput(wm.display, wm.root, SubstructureRedirectMask | SubstructureNotifyMask | KeyPressMask);
   XSync(wm.display, false);
+
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, XK_Q), Mod1Mask, wm.root, false, GrabModeAsync, GrabModeAsync);
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, XK_K), Mod1Mask, wm.root, false, GrabModeAsync, GrabModeAsync);
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, XK_F), Mod1Mask, wm.root, false, GrabModeAsync, GrabModeAsync); 
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, XK_Tab), Mod1Mask, wm.root, false, GrabModeAsync, GrabModeAsync);
 
   wm.clients_count = 0;
   wm.cursor_start_frame_size = (Vec2){ .x = 0.0f, .y = 0.0f};
@@ -107,6 +112,8 @@ void xwm_run(){
   wm.cursor_start_pos = (Vec2){ .x = 0.0f, .y = 0.0f};
   wm.ATOM_WM_PROTOCOLS = XInternAtom(wm.display, "WM_PROTOCOLS", false);
   wm.ATOM_WM_DELETE_WINDOW = XInternAtom(wm.display, "WM_DELETE_WINDOW", false);
+
+
 
 
   while(wm.running){
@@ -220,9 +227,6 @@ void handleConfigureRequst(XEvent *ev){
 
 void handleConfigureNotify(XEvent *ev){
   XConfigureEvent *e = &ev->xconfigure;
-  fprintf(stderr,
-    "DEBUG: ConfigureRequest: client=0x%lx x=%d y=%d w=%d h=%d\n",
-    e->window, e->x, e->y, e->width, e->height);
   if(!clientFrameExists(e->window)) return;
   Window frame = getFrameWindow(e->window);
   XMoveResizeWindow(wm.display, frame, e->x, e->y, e->width, e->height);
@@ -230,29 +234,66 @@ void handleConfigureNotify(XEvent *ev){
 
 void handleKeyPress(XEvent *ev){
   XKeyEvent *e = &ev->xkey;
+
+  Window focusedWindow;
+  int revert_to;
+  XGetInputFocus(wm.display, &focusedWindow, &revert_to);
+
   if(e->state & Mod1Mask && e->keycode == XKeysymToKeycode(wm.display, XK_Q)){
-    Atom* protocols;
-    int32_t num_protocols;
-    if(XGetWMProtocols(wm.display, e->window, &protocols, &num_protocols) 
+    if(clientWindowExists(focusedWindow)){
+      int32_t closingIndex = getClientIndex(focusedWindow);
+      
+      Atom* protocols;
+      int32_t num_protocols;
+      if(XGetWMProtocols(wm.display, focusedWindow, &protocols, &num_protocols) 
       && findAtomPtrRange(protocols, protocols + num_protocols, wm.ATOM_WM_DELETE_WINDOW) != protocols + num_protocols){
-      sendClientMessage(e->window, *protocols);
+        sendClientMessage(focusedWindow, wm.ATOM_WM_DELETE_WINDOW);
+        XFree(protocols);
+      }
+      else{
+        XKillClient(wm.display, focusedWindow);
+      }
+      if(wm.clients_count > 1){
+        int32_t nextIndex = (closingIndex + 1) % wm.clients_count;
+        if(nextIndex == closingIndex){
+          nextIndex = (closingIndex - 1 + wm.clients_count) % wm.clients_count;
+        }
+        XRaiseWindow(wm.display, wm.client_windows[nextIndex].frame);
+        XSetInputFocus(wm.display, wm.client_windows[nextIndex].win, RevertToParent, CurrentTime);
+      }
+      else{// no more windows, focus root
+        XSetInputFocus(wm.display, wm.root, RevertToParent, CurrentTime);
+      }
     }
-    else{
-      XKillClient(wm.display, e->window);
-    }
- }
+  }
   if(e->state & Mod1Mask && e->keycode == XKeysymToKeycode(wm.display, XK_K)){
-    printf("hi\n");
     system("kitty &");
   }
   if(e->state & Mod1Mask && e->keycode == XKeysymToKeycode(wm.display, XK_F)){
-    uint32_t clientIndex = getClientIndex(e->window);
+    uint32_t clientIndex = getClientIndex(focusedWindow);
     if(!wm.client_windows[clientIndex].fullscreen){
-      setFullscreen(e->window);
+      setFullscreen(focusedWindow);
     }
     else{
-      unsetFullscreen(e->window);
+      unsetFullscreen(focusedWindow);
     }
+  }
+  if(e->state & Mod1Mask && e->keycode == XKeysymToKeycode(wm.display, XK_Tab)){
+    Client client = {0};
+    for(uint32_t i = 0; i < wm.clients_count; i++){
+      if(wm.client_windows[i].win == focusedWindow || wm.client_windows[i].frame == focusedWindow){
+        if(i+1 >= wm.clients_count){
+          client = wm.client_windows[0];
+        }
+        else{
+             client = wm.client_windows[i+1];
+        }
+        break;
+      }
+    }
+    XRaiseWindow(wm.display, client.frame);
+    XSetInputFocus(wm.display, client.win, RevertToParent, CurrentTime);
+
   }
 }
 
@@ -268,13 +309,18 @@ void sendClientMessage(Window w, Atom a){
   msg.xclient.message_type = wm.ATOM_WM_PROTOCOLS;
   msg.xclient.format = 32;
   msg.xclient.data.l[0] = a;
-  XSendEvent(wm.display, w, false, 0, &msg);
+  msg.xclient.data.l[1] = CurrentTime;
+  XSendEvent(wm.display, w, false, NoEventMask, &msg);
 }
 
 void handleMapRequest(XEvent *ev){
   XMapRequestEvent *e = &ev->xmaprequest;
   xwmWindowFrame(e->window, false);
   XMapWindow(wm.display, e->window);
+
+  Window frame = getFrameWindow(e->window);
+  XRaiseWindow(wm.display, frame);
+  XSetInputFocus(wm.display, e->window, RevertToParent, CurrentTime);
 }
 
 void handleUnmapNotify(XEvent *ev){
@@ -283,6 +329,24 @@ void handleUnmapNotify(XEvent *ev){
     printf("ignoring unmap, not a client window\n");
     return;
   }
+
+  Window focusedWindow;
+  int revert_to;
+  XGetInputFocus(wm.display, &focusedWindow, &revert_to);
+  bool was_focused = (focusedWindow == e->window);
+
+  uint32_t closingIndex = getClientIndex(e->window);
+  if(was_focused && wm.clients_count > 0){
+      uint32_t next_index = closingIndex;
+      if(next_index >= wm.clients_count){
+        next_index = wm.clients_count - 1;
+      }
+      XRaiseWindow(wm.display, wm.client_windows[next_index].frame);
+      XSetInputFocus(wm.display, wm.client_windows[next_index].win, RevertToParent, CurrentTime);
+  }
+  else if(wm.clients_count == 0){
+      XSetInputFocus(wm.display, wm.root, RevertToParent, CurrentTime);
+    }
   xwmWindowUnframe(e->window);
 }
 
@@ -375,12 +439,12 @@ void unsetFullscreen(Window w){
 
 Atom* findAtomPtrRange(Atom* ptr1, Atom* ptr2, Atom val){
   while(ptr1 < ptr2){
-    ptr1++;
     if(*ptr1 == val){
       return ptr1;
     }
+    ptr1++;
   }
-  return ptr1;
+  return ptr2;
 }
 
 void xwmWindowFrame(Window win, bool createdBeforeWindowManager){
@@ -424,10 +488,6 @@ void xwmWindowFrame(Window win, bool createdBeforeWindowManager){
 
   XGrabButton(wm.display, Button1, Mod1Mask, win, false, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, None);
   XGrabButton(wm.display, Button3, Mod1Mask, win, false, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, None);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, XK_Q), Mod1Mask, win, false, GrabModeAsync, GrabModeAsync);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, XK_K), Mod1Mask, win, false, GrabModeAsync, GrabModeAsync);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, XK_F), Mod1Mask, win, false, GrabModeAsync, GrabModeAsync); 
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, XK_Tab), Mod1Mask, win, false, GrabModeAsync, GrabModeAsync);
 }
 
 int main(void){
