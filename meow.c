@@ -3,6 +3,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
 #include <X11/Xcursor/Xcursor.h>
+#include <X11/cursorfont.h>
 #include "config.h"
 // thanks @cococry for some of the code
 // @cococry also insipered me to try to code this 
@@ -23,6 +24,10 @@
 #define MAX(a, b) ((a) > (b) ? (a) : b)
 
 
+typedef enum{
+  WINDOW_LAYOUT_TILED_MASTER = 0,
+  WINDOW_LAYOUT_FLOATING
+} WindowLayout;
 
 typedef struct {
   float x, y;
@@ -48,8 +53,11 @@ typedef struct {
   Vec2 cursor_start_frame_pos;
   Vec2 cursor_start_frame_size;
 
-  Atom ATOM_WM_DELETE_WINDOW;
-  Atom ATOM_WM_PROTOCOLS;
+  WindowLayout currentLayout;
+  int windowGap;
+
+  Atom ATOM_WM_DELETE_WINDOW; // remove later(useless mostly)
+  Atom ATOM_WM_PROTOCOLS; // remove later(useless mostly)
 } XWM;
 
 void handleConfigureRequst(XEvent *ev);
@@ -63,6 +71,7 @@ void handleButtonPress(XEvent *ev);
 void handleKeyRelease(XEvent *ev);
 void handleMotionNotify(XEvent *ev);
 void handleKeyPress(XEvent *ev);
+void retileLayout();
 void sendClientMessage(Window w, Atom a);
 Window getFrameWindow(Window w);
 int32_t getClientIndex(Window w);
@@ -98,13 +107,17 @@ XWM xwm_init(){
 void xwm_run(){
   wm.running = true;
 
-  XSelectInput(wm.display, wm.root, SubstructureRedirectMask | SubstructureNotifyMask | KeyPressMask);
+  Cursor cursor = XCreateFontCursor(wm.display, XC_left_ptr);
+  XDefineCursor(wm.display, wm.root, cursor);
   XSync(wm.display, false);
 
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, XK_Q), Mod1Mask, wm.root, false, GrabModeAsync, GrabModeAsync);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, XK_K), Mod1Mask, wm.root, false, GrabModeAsync, GrabModeAsync);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, XK_F), Mod1Mask, wm.root, false, GrabModeAsync, GrabModeAsync); 
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, XK_Tab), Mod1Mask, wm.root, false, GrabModeAsync, GrabModeAsync);
+  XSelectInput(wm.display, wm.root, SubstructureRedirectMask | SubstructureNotifyMask);
+  XSync(wm.display, false);
+
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, KILL_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, TERMINAL_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, FULLSCREEN_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync); 
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, CYCLE_WINDOWS_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
 
   wm.clients_count = 0;
   wm.cursor_start_frame_size = (Vec2){ .x = 0.0f, .y = 0.0f};
@@ -160,7 +173,7 @@ void handleButtonPress(XEvent *ev){
 
   if(!clientWindowExists(e->window)) return;
 
-  if((e->state & Mod1Mask) && e->button == Button1){
+  if((e->state & MASTER_KEY) && e->button == Button1){
     wm.cursor_start_pos = (Vec2){
       .x = (float)e->x_root,
       .y = (float)e->y_root
@@ -191,13 +204,15 @@ void handleMotionNotify(XEvent *ev){
 
   Window frame = getFrameWindow(e->window);
 
-  if((e->state & Mod1Mask) && (e->state & Button1Mask)){
+  if((e->state & MASTER_KEY) && (e->state & Button1Mask)){
     XMoveWindow(wm.display, frame, 
                 (int)(wm.cursor_start_frame_pos.x) + dx, 
                 (int)(wm.cursor_start_frame_pos.y) + dy
     );
   }
-  else if((e->state & Mod1Mask) && (e->state & Button3Mask)){
+  else if((e->state & MASTER_KEY) && (e->state & Button3Mask)){
+    printf("dx: %d, dy: %d\n", dx, dy);
+    printf("dx1: %f, dy1: %f\n", -wm.cursor_start_frame_size.x, -wm.cursor_start_frame_size.y);
     Vec2 rdy = (Vec2){.x = wm.cursor_start_frame_size.x + MAX(dx, -wm.cursor_start_frame_size.x),
                       .y = wm.cursor_start_frame_size.y + MAX(dy, -wm.cursor_start_frame_size.y)};
     XResizeWindow(wm.display, frame, (int)rdy.x, (int)rdy.y);
@@ -239,7 +254,7 @@ void handleKeyPress(XEvent *ev){
   int revert_to;
   XGetInputFocus(wm.display, &focusedWindow, &revert_to);
 
-  if(e->state & Mod1Mask && e->keycode == XKeysymToKeycode(wm.display, XK_Q)){
+  if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, KILL_KEY)){
     if(clientWindowExists(focusedWindow)){
       int32_t closingIndex = getClientIndex(focusedWindow);
       
@@ -266,10 +281,10 @@ void handleKeyPress(XEvent *ev){
       }
     }
   }
-  if(e->state & Mod1Mask && e->keycode == XKeysymToKeycode(wm.display, XK_K)){
-    system("kitty &");
+  if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, TERMINAL_KEY)){
+    system(TERMINAL_CMD);
   }
-  if(e->state & Mod1Mask && e->keycode == XKeysymToKeycode(wm.display, XK_F)){
+  if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, FULLSCREEN_KEY)){
     uint32_t clientIndex = getClientIndex(focusedWindow);
     if(!wm.client_windows[clientIndex].fullscreen){
       setFullscreen(focusedWindow);
@@ -278,7 +293,7 @@ void handleKeyPress(XEvent *ev){
       unsetFullscreen(focusedWindow);
     }
   }
-  if(e->state & Mod1Mask && e->keycode == XKeysymToKeycode(wm.display, XK_Tab)){
+  if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, CYCLE_WINDOWS_KEY)){
     Client client = {0};
     for(uint32_t i = 0; i < wm.clients_count; i++){
       if(wm.client_windows[i].win == focusedWindow || wm.client_windows[i].frame == focusedWindow){
@@ -393,6 +408,7 @@ void xwmWindowUnframe(Window w){
         wm.client_windows[j]= wm.client_windows[j+1];
       }
       wm.clients_count--;
+      retileLayout();
       break;
     }
   }
@@ -447,6 +463,51 @@ Atom* findAtomPtrRange(Atom* ptr1, Atom* ptr2, Atom val){
   return ptr2;
 }
 
+void retileLayout(){
+  int32_t masterIndex = -1;
+  uint32_t clientsVisible = wm.clients_count;
+  bool foundMaster = false;
+
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+    if(!foundMaster){
+      masterIndex = i;
+      foundMaster = true;
+    }
+  }
+  
+  if(clientsVisible <= 0 || !foundMaster) return;
+
+  Client *master = &wm.client_windows[masterIndex];
+  if(wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER){
+    if(clientsVisible == 1){
+      setFullscreen(master->win);
+      XSetWindowBorderWidth(wm.display, master->frame, BORDER_WIDTH);
+      return;
+    }
+
+    XMoveWindow(wm.display, master->frame, 0, 0);
+    XResizeWindow(wm.display, master->frame, MONITOR_WIDTH/2, MONITOR_HEIGHT);// change with actual values later
+    XResizeWindow(wm.display, master->win, MONITOR_WIDTH/2, MONITOR_HEIGHT);
+    master->fullscreen = false;
+    XSetWindowBorderWidth(wm.display, master->frame, BORDER_WIDTH);
+
+    for(uint32_t i = 1; i < clientsVisible; i++){
+      uint32_t clientIndex = masterIndex + i;
+      int32_t stack_width  = MONITOR_WIDTH / 2;
+      int32_t stack_height = MONITOR_HEIGHT / (clientsVisible - 1);
+      int32_t stack_x      = MONITOR_WIDTH - stack_width;
+      int32_t stack_y      = (i - 1) * stack_height;
+      XResizeWindow(wm.display, wm.client_windows[clientIndex].frame,
+                    stack_width, stack_height);
+      XResizeWindow(wm.display, wm.client_windows[clientIndex].win,
+                    stack_width, stack_height);
+
+      XMoveWindow(wm.display, wm.client_windows[clientIndex].frame, stack_x, stack_y);
+      XSetWindowBorderWidth(wm.display, wm.client_windows[clientIndex].frame, BORDER_WIDTH);
+    }
+  }
+}
+
 void xwmWindowFrame(Window win, bool createdBeforeWindowManager){
   XWindowAttributes attribs;
 
@@ -486,8 +547,9 @@ void xwmWindowFrame(Window win, bool createdBeforeWindowManager){
   wm.client_windows[wm.clients_count].win = win;
   wm.clients_count++;
 
-  XGrabButton(wm.display, Button1, Mod1Mask, win, false, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, None);
-  XGrabButton(wm.display, Button3, Mod1Mask, win, false, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, None);
+  XGrabButton(wm.display, Button1, MASTER_KEY, win, false, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, None);
+  XGrabButton(wm.display, Button3, MASTER_KEY, win, false, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, None);
+  retileLayout();
 }
 
 int main(void){
