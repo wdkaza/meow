@@ -55,7 +55,7 @@ typedef struct {
   Vec2 cursor_start_frame_size;
 
   WindowLayout currentLayout;
-  int windowGap;
+  uint32_t windowGap;
 
   Atom ATOM_WM_DELETE_WINDOW; // remove later(useless mostly)
   Atom ATOM_WM_PROTOCOLS; // remove later(useless mostly)
@@ -74,6 +74,8 @@ void handleMotionNotify(XEvent *ev);
 void handleKeyPress(XEvent *ev);
 void retileLayout();
 void sendClientMessage(Window w, Atom a);
+void moveClientUpLayout(Client *client);
+void moveClientDownLayout(Client *client);
 Window getFrameWindow(Window w);
 int32_t getClientIndex(Window w);
 bool clientFrameExists(Window w);
@@ -123,7 +125,10 @@ void xwm_run(){
   XGrabKey(wm.display, XKeysymToKeycode(wm.display, GAP_DECREAS_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
   XGrabKey(wm.display, XKeysymToKeycode(wm.display, SET_WINDOW_LAYOUT_TILED_MASTER), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
   XGrabKey(wm.display, XKeysymToKeycode(wm.display, SET_WINDOW_LAYOUT_FLOATING), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
-
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, WINDOW_ADD_TO_LAYOUT), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, WINDOW_LAYOUT_MOVE_UP), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, WINDOW_LAYOUT_MOVE_DOWN), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
+  
   
   wm.clients_count = 0;
   wm.cursor_start_frame_size = (Vec2){ .x = 0.0f, .y = 0.0f};
@@ -218,8 +223,6 @@ void handleMotionNotify(XEvent *ev){
     );
   }
   else if((e->state & MASTER_KEY) && (e->state & Button3Mask)){
-    printf("dx: %d, dy: %d\n", dx, dy);
-    printf("dx1: %f, dy1: %f\n", -wm.cursor_start_frame_size.x, -wm.cursor_start_frame_size.y);
     Vec2 rdy = (Vec2){.x = wm.cursor_start_frame_size.x + MAX(dx, -wm.cursor_start_frame_size.x),
                       .y = wm.cursor_start_frame_size.y + MAX(dy, -wm.cursor_start_frame_size.y)};
     XResizeWindow(wm.display, frame, (int)rdy.x, (int)rdy.y);
@@ -288,25 +291,35 @@ void handleKeyPress(XEvent *ev){
       }
     }
   }
-  if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, TERMINAL_KEY)){
+  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, TERMINAL_KEY)){
     system(TERMINAL_CMD);
   }
-  if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, GAP_INCREASE_KEY)){
+  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, GAP_INCREASE_KEY)){
     wm.windowGap += 2;
     retileLayout();
   }
-  if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, GAP_DECREAS_KEY)){
+  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, GAP_DECREAS_KEY)){
     wm.windowGap -= 2;
     retileLayout();
   }
-  if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, SET_WINDOW_LAYOUT_TILED_MASTER)){
+  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, SET_WINDOW_LAYOUT_TILED_MASTER)){
     wm.currentLayout = WINDOW_LAYOUT_TILED_MASTER;
     retileLayout();
   }
-  if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, SET_WINDOW_LAYOUT_FLOATING)){
+  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, SET_WINDOW_LAYOUT_FLOATING)){
     wm.currentLayout = WINDOW_LAYOUT_FLOATING;
   }
-  if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, FULLSCREEN_KEY)){
+  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, WINDOW_ADD_TO_LAYOUT)){
+    wm.client_windows[getClientIndex(e->window)].inLayout = true;
+    retileLayout();
+  }
+  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, WINDOW_LAYOUT_MOVE_UP)){
+    moveClientUpLayout(&wm.client_windows[getClientIndex(focusedWindow)]);
+  }
+  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, WINDOW_LAYOUT_MOVE_DOWN)){
+    moveClientDownLayout(&wm.client_windows[getClientIndex(focusedWindow)]);
+  }
+  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, FULLSCREEN_KEY)){
     uint32_t clientIndex = getClientIndex(focusedWindow);
     if(!wm.client_windows[clientIndex].fullscreen){
       setFullscreen(focusedWindow);
@@ -315,7 +328,7 @@ void handleKeyPress(XEvent *ev){
       unsetFullscreen(focusedWindow);
     }
   }
-  if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, CYCLE_WINDOWS_KEY)){
+  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, CYCLE_WINDOWS_KEY)){
     Client client = {0};
     for(uint32_t i = 0; i < wm.clients_count; i++){
       if(wm.client_windows[i].win == focusedWindow || wm.client_windows[i].frame == focusedWindow){
@@ -455,7 +468,7 @@ void setFullscreen(Window w){
   wm.client_windows[clientIndex].fullscreenRevertSize = (Vec2){ .x = attr.width, .y = attr.height};
 
   Window frame = getFrameWindow(w);
-  XSetWindowBorderWidth(wm.display, frame, 0);
+  XSetWindowBorderWidth(wm.display, frame, BORDER_WIDTH);
   int screen = DefaultScreen(wm.display);
   int screenWidth = DisplayWidth(wm.display, screen);
   int screenHeight = DisplayHeight(wm.display, screen);
@@ -483,6 +496,29 @@ Atom* findAtomPtrRange(Atom* ptr1, Atom* ptr2, Atom val){
     ptr1++;
   }
   return ptr2;
+}
+// both functions below broken 
+void moveClientUpLayout(Client *client){
+  int32_t clientIndex = getClientIndex(client->win);
+  if(clientIndex == -1 || wm.clients_count <= 1) return;
+
+  uint32_t upperIndex = (clientIndex == (int32_t)wm.clients_count -1) ? 0 : clientIndex + 1;
+  Client tmp = wm.client_windows[clientIndex];
+  wm.client_windows[clientIndex] = wm.client_windows[upperIndex];
+  wm.client_windows[upperIndex] = tmp;
+  retileLayout();
+}
+
+void moveClientDownLayout(Client *client){
+  int32_t clientIndex = getClientIndex(client->win);
+
+  if(clientIndex == -1 || wm.clients_count <= 1) return;
+
+  uint32_t lowerIndex = (clientIndex == 0) ? wm.clients_count - 1 : (uint32_t)(clientIndex - 1);
+  Client tmp = wm.client_windows[clientIndex];
+  wm.client_windows[clientIndex] = wm.client_windows[lowerIndex];
+  wm.client_windows[lowerIndex] = tmp;
+  retileLayout();
 }
 
 void retileLayout(){
@@ -515,8 +551,8 @@ void retileLayout(){
     } 
   
     XMoveWindow(wm.display, master->frame, wm.windowGap, wm.windowGap);
-    XResizeWindow(wm.display, master->frame, MONITOR_WIDTH/2 - 2 * wm.windowGap, MONITOR_HEIGHT - 2 * wm.windowGap);// change with actual values later
-    XResizeWindow(wm.display, master->win, MONITOR_WIDTH/2, MONITOR_HEIGHT);
+    XResizeWindow(wm.display, master->frame, MONITOR_WIDTH/2 - 2 * wm.windowGap, MONITOR_HEIGHT - 2 * wm.windowGap);
+    XResizeWindow(wm.display, master->win, MONITOR_WIDTH/2 - 2 * wm.windowGap, MONITOR_HEIGHT - 2 * wm.windowGap);
     XSetWindowBorderWidth(wm.display, master->frame, BORDER_WIDTH);
     master->fullscreen = false;
 

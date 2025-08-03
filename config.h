@@ -9,7 +9,7 @@
 #define TERMINAL_CMD "kitty &"
 #define BROWSER_CMD "firefox &"
 
-#define MASTER_KEY Mod1Mask
+#define MASTER_KEY Mod1Mask // alt by default
 
 #define KILL_KEY XK_Q // kill window
 #define TERMINAL_KEY XK_Return
@@ -24,6 +24,10 @@
 #define SET_WINDOW_LAYOUT_TILED_MASTER XK_R
 #define SET_WINDOW_LAYOUT_FLOATING XK_T 
 
-#define BORDER_WIDTH 3
+#define WINDOW_ADD_TO_LAYOUT XK_space
+#define WINDOW_LAYOUT_MOVE_UP XK_Down // i might have reversed it so the keys are reversed as well
+#define WINDOW_LAYOUT_MOVE_DOWN XK_Up // maybe will fix later but for now this is MOVEUP
+
+#define BORDER_WIDTH 4
 #define BORDER_COLOR 0xffb6c1
 #define BG_COLOR 0x000000
