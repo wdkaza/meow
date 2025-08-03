@@ -38,6 +38,7 @@ typedef struct {
   Window frame;
   bool fullscreen;
   Vec2 fullscreenRevertSize;
+  bool inLayout;
 } Client;
 
 typedef struct {
@@ -118,11 +119,17 @@ void xwm_run(){
   XGrabKey(wm.display, XKeysymToKeycode(wm.display, TERMINAL_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
   XGrabKey(wm.display, XKeysymToKeycode(wm.display, FULLSCREEN_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync); 
   XGrabKey(wm.display, XKeysymToKeycode(wm.display, CYCLE_WINDOWS_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, GAP_INCREASE_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, GAP_DECREAS_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, SET_WINDOW_LAYOUT_TILED_MASTER), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, SET_WINDOW_LAYOUT_FLOATING), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
 
+  
   wm.clients_count = 0;
   wm.cursor_start_frame_size = (Vec2){ .x = 0.0f, .y = 0.0f};
   wm.cursor_start_frame_pos = (Vec2){ .x = 0.0f, .y = 0.0f};
   wm.cursor_start_pos = (Vec2){ .x = 0.0f, .y = 0.0f};
+  wm.windowGap = START_WINDOW_GAP;
   wm.ATOM_WM_PROTOCOLS = XInternAtom(wm.display, "WM_PROTOCOLS", false);
   wm.ATOM_WM_DELETE_WINDOW = XInternAtom(wm.display, "WM_DELETE_WINDOW", false);
 
@@ -284,6 +291,21 @@ void handleKeyPress(XEvent *ev){
   if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, TERMINAL_KEY)){
     system(TERMINAL_CMD);
   }
+  if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, GAP_INCREASE_KEY)){
+    wm.windowGap += 2;
+    retileLayout();
+  }
+  if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, GAP_DECREAS_KEY)){
+    wm.windowGap -= 2;
+    retileLayout();
+  }
+  if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, SET_WINDOW_LAYOUT_TILED_MASTER)){
+    wm.currentLayout = WINDOW_LAYOUT_TILED_MASTER;
+    retileLayout();
+  }
+  if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, SET_WINDOW_LAYOUT_FLOATING)){
+    wm.currentLayout = WINDOW_LAYOUT_FLOATING;
+  }
   if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, FULLSCREEN_KEY)){
     uint32_t clientIndex = getClientIndex(focusedWindow);
     if(!wm.client_windows[clientIndex].fullscreen){
@@ -437,9 +459,9 @@ void setFullscreen(Window w){
   int screen = DefaultScreen(wm.display);
   int screenWidth = DisplayWidth(wm.display, screen);
   int screenHeight = DisplayHeight(wm.display, screen);
-  
-  XMoveResizeWindow(wm.display, frame, 0, 0, screenWidth, screenHeight);
-  XResizeWindow(wm.display, w, screenWidth, screenHeight);
+  // BUG HERE (full screen right now only works with gaps TODO: make actual fullscreen toggable) 
+  XMoveResizeWindow(wm.display, frame, wm.windowGap, wm.windowGap, screenWidth - wm.windowGap * 2, screenHeight - wm.windowGap * 2);
+  XResizeWindow(wm.display, w, screenWidth - wm.windowGap * 2, screenHeight - wm.windowGap * 2);
 }
 
 void unsetFullscreen(Window w){
@@ -480,23 +502,30 @@ void retileLayout(){
   Client *master = &wm.client_windows[masterIndex];
   if(wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER){
     if(clientsVisible == 1){
-      setFullscreen(master->win);
+      XMoveWindow(wm.display, master->frame, wm.windowGap, wm.windowGap);
+      XResizeWindow(wm.display, master->frame, 
+                    MONITOR_WIDTH - 2 * wm.windowGap, 
+                    MONITOR_HEIGHT - 2 * wm.windowGap);
+      XResizeWindow(wm.display, master->win, 
+                    MONITOR_WIDTH - 2 * wm.windowGap, 
+                    MONITOR_HEIGHT - 2 * wm.windowGap);
       XSetWindowBorderWidth(wm.display, master->frame, BORDER_WIDTH);
+      master->fullscreen = false;
       return;
-    }
-
-    XMoveWindow(wm.display, master->frame, 0, 0);
-    XResizeWindow(wm.display, master->frame, MONITOR_WIDTH/2, MONITOR_HEIGHT);// change with actual values later
+    } 
+  
+    XMoveWindow(wm.display, master->frame, wm.windowGap, wm.windowGap);
+    XResizeWindow(wm.display, master->frame, MONITOR_WIDTH/2 - 2 * wm.windowGap, MONITOR_HEIGHT - 2 * wm.windowGap);// change with actual values later
     XResizeWindow(wm.display, master->win, MONITOR_WIDTH/2, MONITOR_HEIGHT);
-    master->fullscreen = false;
     XSetWindowBorderWidth(wm.display, master->frame, BORDER_WIDTH);
+    master->fullscreen = false;
 
     for(uint32_t i = 1; i < clientsVisible; i++){
       uint32_t clientIndex = masterIndex + i;
-      int32_t stack_width  = MONITOR_WIDTH / 2;
-      int32_t stack_height = MONITOR_HEIGHT / (clientsVisible - 1);
-      int32_t stack_x      = MONITOR_WIDTH - stack_width;
-      int32_t stack_y      = (i - 1) * stack_height;
+      int32_t stack_width  = MONITOR_WIDTH / 2 - 2 * wm.windowGap;
+      int32_t stack_height = (MONITOR_HEIGHT - (clientsVisible * wm.windowGap)) / (clientsVisible - 1);
+      int32_t stack_x      = MONITOR_WIDTH / 2 + wm.windowGap;
+      int32_t stack_y      = wm.windowGap + (i - 1) * (stack_height + wm.windowGap);
       XResizeWindow(wm.display, wm.client_windows[clientIndex].frame,
                     stack_width, stack_height);
       XResizeWindow(wm.display, wm.client_windows[clientIndex].win,
