@@ -28,6 +28,10 @@
 #define WINDOW_LAYOUT_MOVE_UP XK_Down // i might have reversed it so the keys are reversed as well
 #define WINDOW_LAYOUT_MOVE_DOWN XK_Up // maybe will fix later but for now this is MOVEUP
 
+#define DESKTOP_COUNT 10
+#define DESKTOP_CYCLE_UP XK_Z
+#define DESKTOP_CYCLE_DOWN XK_X
+
 #define BORDER_WIDTH 4
 #define BORDER_COLOR 0xffb6c1
 #define BG_COLOR 0x000000

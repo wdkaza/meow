@@ -3,6 +3,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
 #include <X11/Xcursor/Xcursor.h>
+#include <X11/XKBlib.h>
 #include <X11/cursorfont.h>
 #include "config.h"
 // thanks @cococry for some of the code
@@ -39,6 +40,7 @@ typedef struct {
   bool fullscreen;
   Vec2 fullscreenRevertSize;
   bool inLayout;
+  int32_t desktopIndex;
 } Client;
 
 typedef struct {
@@ -49,6 +51,7 @@ typedef struct {
 
   Client client_windows[CLIENT_WINDOW_CAP];
   uint32_t clients_count;
+  int32_t currentDesktop;
 
   Vec2 cursor_start_pos;
   Vec2 cursor_start_frame_pos;
@@ -56,6 +59,9 @@ typedef struct {
 
   WindowLayout currentLayout;
   uint32_t windowGap;
+
+  int screenHeight;
+  int screenWidth;
 
   Atom ATOM_WM_DELETE_WINDOW; // remove later(useless mostly)
   Atom ATOM_WM_PROTOCOLS; // remove later(useless mostly)
@@ -76,34 +82,35 @@ void retileLayout();
 void sendClientMessage(Window w, Atom a);
 void moveClientUpLayout(Client *client);
 void moveClientDownLayout(Client *client);
+void changeDesktop(int32_t desktopIndex);
 Window getFrameWindow(Window w);
 int32_t getClientIndex(Window w);
 bool clientFrameExists(Window w);
 bool clientWindowExists(Window w);
 void unsetFullscreen(Window w);
+void initDesktops();
 void setFullscreen(Window w);
 Atom* findAtomPtrRange(Atom* ptr1, Atom* ptr2, Atom val);
 
 static XWM wm;
 
 int xwm_error_handler(Display *dpy, XErrorEvent *e){
-    char buf[1024];
-    char request_buf[256];
-    
-    XGetErrorText(dpy, e->error_code, buf, sizeof(buf));
-    sprintf(request_buf, "%d", e->request_code);
-    XGetErrorDatabaseText(dpy, "XRequest", request_buf, "Unknown", request_buf, sizeof(request_buf));
-    
-    fprintf(stderr, "X Error: %s\n", buf);
-    fprintf(stderr, "  Request: %s (%d)\n", request_buf, e->request_code);
-    fprintf(stderr, "  Resource ID: 0x%lx\n", e->resourceid);
-    fprintf(stderr, "  Serial: %lu\n", e->serial);
-    
-    return 0;
+  char buf[1024];
+  XGetErrorText(dpy, e->error_code, buf, sizeof(buf));
+  fprintf(stderr, "X Error: %s (Request: %d)\n", buf, e->error_code);
+  return 0;
+}
+
+void initDesktops(){
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+    if(wm.client_windows[i].desktopIndex < 0 || wm.client_windows[i].desktopIndex >= DESKTOP_COUNT){
+      wm.client_windows[i].desktopIndex = 0;
+    }
+  }
 }
 
 XWM xwm_init(){
-  XWM wm;
+  XWM wm = {0};
   XSetErrorHandler(xwm_error_handler);
 
   wm.display = XOpenDisplay(NULL);
@@ -113,6 +120,9 @@ XWM xwm_init(){
   }
 
   wm.root = DefaultRootWindow(wm.display);
+  int screen = DefaultScreen(wm.display);
+  wm.screenWidth = DisplayWidth(wm.display, screen);
+  wm.screenHeight = DisplayHeight(wm.display, screen);
   return wm;
 }
 
@@ -137,6 +147,11 @@ void xwm_run(){
   XGrabKey(wm.display, XKeysymToKeycode(wm.display, WINDOW_ADD_TO_LAYOUT), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
   XGrabKey(wm.display, XKeysymToKeycode(wm.display, WINDOW_LAYOUT_MOVE_UP), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
   XGrabKey(wm.display, XKeysymToKeycode(wm.display, WINDOW_LAYOUT_MOVE_DOWN), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
+  for (int i = 0; i < 10; i++){
+    KeyCode keycode = XKeysymToKeycode(wm.display, XK_0 + i);
+    XGrabKey(wm.display, keycode, MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
+    XGrabKey(wm.display, keycode, MASTER_KEY | ShiftMask, wm.root, false, GrabModeAsync, GrabModeAsync);
+  }
   
   
   wm.clients_count = 0;
@@ -148,8 +163,7 @@ void xwm_run(){
   wm.ATOM_WM_PROTOCOLS = XInternAtom(wm.display, "WM_PROTOCOLS", false);
   wm.ATOM_WM_DELETE_WINDOW = XInternAtom(wm.display, "WM_DELETE_WINDOW", false);
 
-
-
+  initDesktops();
 
   while(wm.running){
     XEvent ev;
@@ -157,7 +171,6 @@ void xwm_run(){
 
     switch(ev.type){
       default:
-        puts("unexpected event");
         break;
       case MapRequest:
         handleMapRequest(&ev);
@@ -242,10 +255,18 @@ void handleMotionNotify(XEvent *ev){
     }
   }
   else if((e->state & MASTER_KEY) && (e->state & Button3Mask)){
+    /*
     Vec2 rdy = (Vec2){.x = wm.cursor_start_frame_size.x + MAX(dx, -wm.cursor_start_frame_size.x),
                       .y = wm.cursor_start_frame_size.y + MAX(dy, -wm.cursor_start_frame_size.y)};
     XResizeWindow(wm.display, frame, (int)rdy.x, (int)rdy.y);
     XResizeWindow(wm.display, e->window, (int)rdy.x, (int)rdy.y);
+    */
+    int new_width = MAX(1, (int)wm.cursor_start_frame_size.x + dx);
+    int new_height = MAX(1, (int)wm.cursor_start_frame_size.y + dy);
+    
+    XResizeWindow(wm.display, frame, new_width, new_height);
+    XResizeWindow(wm.display, e->window, new_width, new_height);
+
     if(client->inLayout){
       client->inLayout = false;
       retileLayout();
@@ -254,6 +275,21 @@ void handleMotionNotify(XEvent *ev){
 
 }
 
+void focusNextWindow(){
+  if(wm.clients_count == 0){
+    XSetInputFocus(wm.display, wm.root, RevertToParent, CurrentTime);
+    return;
+  }
+
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+    if(wm.client_windows[i].desktopIndex == wm.currentDesktop){
+      XRaiseWindow(wm.display, wm.client_windows[i].frame);
+      XSetInputFocus(wm.display, wm.client_windows[i].win, RevertToParent, CurrentTime);
+      return;
+    }
+  }
+  XSetInputFocus(wm.display, wm.root, RevertToParent, CurrentTime);
+}
 
 void handleConfigureRequst(XEvent *ev){
   XConfigureRequestEvent *e = &ev->xconfigurerequest;
@@ -290,7 +326,7 @@ void handleKeyPress(XEvent *ev){
   XGetInputFocus(wm.display, &focusedWindow, &revert_to);
 
   if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, KILL_KEY)){
-    if(clientWindowExists(focusedWindow)){
+    if(clientWindowExists(focusedWindow) || focusedWindow != wm.root){
       int32_t closingIndex = getClientIndex(focusedWindow);
       
       Atom* protocols;
@@ -320,11 +356,11 @@ void handleKeyPress(XEvent *ev){
     system(TERMINAL_CMD);
   }
   else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, GAP_INCREASE_KEY)){
-    wm.windowGap += 2;
+    wm.windowGap = MIN(wm.windowGap + 2, 100);
     retileLayout();
   }
   else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, GAP_DECREAS_KEY)){
-    wm.windowGap -= 2;
+    wm.windowGap = MAX((int)wm.windowGap - 2, 0);
     retileLayout();
   }
   else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, SET_WINDOW_LAYOUT_TILED_MASTER)){
@@ -339,6 +375,22 @@ void handleKeyPress(XEvent *ev){
   }
   else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, SET_WINDOW_LAYOUT_FLOATING)){
     wm.currentLayout = WINDOW_LAYOUT_FLOATING;
+  }
+  else if((e->state & MASTER_KEY) && (e->state & ShiftMask) && XK_0 <= XkbKeycodeToKeysym(wm.display, e->keycode, 0, 0) && XkbKeycodeToKeysym(wm.display, e->keycode, 0, 0) <= XK_9){
+    int newDesktop = XkbKeycodeToKeysym(wm.display, e->keycode, 0, 0) - XK_0;
+    if(newDesktop != wm.currentDesktop){
+      wm.currentDesktop = newDesktop;
+      changeDesktop(wm.currentDesktop);
+      retileLayout();
+    }
+  }
+  else if((e->state & MASTER_KEY) && XK_0 <= XkbKeycodeToKeysym(wm.display, e->keycode, 0, 0) && XkbKeycodeToKeysym(wm.display,e->keycode, 0, 0) <= XK_9){
+    int newDesktop = XkbKeycodeToKeysym(wm.display, e->keycode, 0, 0) - XK_0;
+    if(newDesktop != wm.currentDesktop){
+      wm.currentDesktop = newDesktop;
+      changeDesktop(wm.currentDesktop);
+      retileLayout();
+    }
   }
   else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, WINDOW_ADD_TO_LAYOUT)){
     if(clientWindowExists(focusedWindow)){
@@ -467,18 +519,20 @@ Window getFrameWindow(Window w){
   return 0;
 }
 
+
 void xwmWindowUnframe(Window w){
   if(!clientWindowExists(w)) return;
 
   int32_t clientIndex = getClientIndex(w);
   if(clientIndex == -1) return;
 
-  Window frameWin = getFrameWindow(w);
+  Window frameWin = wm.client_windows[clientIndex].frame;
   if(frameWin == 0) return;
   XUnmapWindow(wm.display, frameWin);
   XReparentWindow(wm.display, w, wm.root, 0, 0);
   XRemoveFromSaveSet(wm.display, w);
   XDestroyWindow(wm.display, frameWin);
+  XSync(wm.display, false);
   
   for(uint32_t j = clientIndex; j < wm.clients_count - 1; j++){
     wm.client_windows[j] = wm.client_windows[j+1];
@@ -486,6 +540,8 @@ void xwmWindowUnframe(Window w){
   
   memset(&wm.client_windows[wm.clients_count -1], 0, sizeof(Client));
   wm.clients_count--;
+
+  retileLayout();
 }
 
 
@@ -522,11 +578,32 @@ void unsetFullscreen(Window w){
   if(!wm.client_windows[clientIndex].fullscreen) return;
   wm.client_windows[clientIndex].fullscreen = false;
   Window frame = getFrameWindow(w);
-  XSetWindowBorderWidth(wm.display, frame, BORDER_WIDTH);
-  XMoveResizeWindow(wm.display, frame, 0, 0, wm.client_windows[clientIndex].fullscreenRevertSize.x, wm.client_windows[clientIndex].fullscreenRevertSize.y); // BUG HERE BUG HERE BUG HERE BUG HERE BUG HERE BUG HERE BUG HERE BUG HERE(we always move window back to 0,0 (x,y) and it should go back ot its position prob, but whatever)
-  XResizeWindow(wm.display, w, wm.client_windows[clientIndex].fullscreenRevertSize.x, wm.client_windows[clientIndex].fullscreenRevertSize.y);
+
+  int screen = DefaultScreen(wm.display);
+  int screenWidth = DisplayWidth(wm.display, screen);
+  int screenHeight = DisplayHeight(wm.display, screen);
+  int windowWidth = wm.client_windows[clientIndex].fullscreenRevertSize.x;
+  int windowHeight = wm.client_windows[clientIndex].fullscreenRevertSize.y;
+  
+  int centerX = (screenWidth - windowWidth) / 2;
+  int centerY = (screenHeight - windowHeight) / 2;
+  
+  XMoveResizeWindow(wm.display, frame, centerX, centerY, windowWidth, windowHeight);
+  XResizeWindow(wm.display, w, windowWidth, windowHeight);
 }
 
+void changeDesktop(int32_t desktopIndex){
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+    Client *c = &wm.client_windows[i];
+
+    if(c->desktopIndex == desktopIndex){
+      XMapWindow(wm.display, c->frame);
+    }
+    else{
+      XUnmapWindow(wm.display, c->frame);
+    }
+  }
+}
 
 Atom* findAtomPtrRange(Atom* ptr1, Atom* ptr2, Atom val){
   while(ptr1 < ptr2){
@@ -566,7 +643,7 @@ void retileLayout(){
   Client *clients[CLIENT_WINDOW_CAP];
   uint32_t client_count = 0;
   for(uint32_t i = 0; i < wm.clients_count; i++){
-    if(wm.client_windows[i].inLayout){
+    if(wm.client_windows[i].inLayout && wm.client_windows[i].desktopIndex == wm.currentDesktop){
       clients[client_count++] = &wm.client_windows[i];
     }
   }
@@ -670,6 +747,7 @@ void xwmWindowFrame(Window win, bool createdBeforeWindowManager){
   wm.client_windows[wm.clients_count].win = win;
   wm.client_windows[wm.clients_count].inLayout = (wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER);
   wm.client_windows[wm.clients_count].fullscreen = false;
+  wm.client_windows[wm.clients_count].desktopIndex = wm.currentDesktop; 
   wm.clients_count++;
 
   XGrabButton(wm.display, Button1, MASTER_KEY, win, false, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, None);
