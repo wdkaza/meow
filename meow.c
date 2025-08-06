@@ -59,6 +59,7 @@ typedef struct {
 
   WindowLayout currentLayout;
   uint32_t windowGap;
+  Window focused_Window;
 
   int screenHeight;
   int screenWidth;
@@ -86,6 +87,7 @@ void moveWindowToDesktop(Window w, int32_t desktopIndex);
 void changeDesktop(int32_t desktopIndex);
 Window getFrameWindow(Window w);
 int32_t getClientIndex(Window w);
+void setFocusToWindow(Window w);
 bool clientFrameExists(Window w);
 bool clientWindowExists(Window w);
 void unsetFullscreen(Window w);
@@ -130,6 +132,8 @@ XWM xwm_init(){
   wm.screenWidth = DisplayWidth(wm.display, screen);
   wm.screenHeight = DisplayHeight(wm.display, screen);
 
+  wm.focused_Window = None;
+
   XSetWindowAttributes attrs;
   attrs.backing_store = Always;
   XChangeWindowAttributes(wm.display, wm.root, CWBackingStore, &attrs);
@@ -150,6 +154,7 @@ void xwm_run(){
   XSync(wm.display, false);
 
   XGrabKey(wm.display, XKeysymToKeycode(wm.display, KILL_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, ROFI_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
   XGrabKey(wm.display, XKeysymToKeycode(wm.display, TERMINAL_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
   XGrabKey(wm.display, XKeysymToKeycode(wm.display, FULLSCREEN_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync); 
   XGrabKey(wm.display, XKeysymToKeycode(wm.display, CYCLE_WINDOWS_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
@@ -224,8 +229,7 @@ void handleButtonPress(XEvent *ev){
   Window targetWindow = e->window;
 
   if(clientWindowExists(targetWindow) || clientFrameExists(e->window)){
-    XRaiseWindow(wm.display, getFrameWindow(targetWindow));
-    XSetInputFocus(wm.display, targetWindow, RevertToParent, CurrentTime);
+    setFocusToWindow(targetWindow);
   }
 
   if((e->state & MASTER_KEY) && e->button == Button1){
@@ -295,6 +299,40 @@ void handleMotionNotify(XEvent *ev){
 
 }
 
+void updateWindowBorders(Window w){
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+    if(wm.client_windows[i].desktopIndex == wm.currentDesktop){
+      XSetWindowBorder(wm.display, wm.client_windows[i].frame, BORDER_COLOR);
+      XSetWindowBorderWidth(wm.display, wm.client_windows[i].frame, BORDER_WIDTH);
+    }
+  }
+
+  if(w != None && clientWindowExists(w)){
+    Window frame = getFrameWindow(w);
+    if(frame != None){
+      XSetWindowBorder(wm.display, frame, BORDER_FOCUSED_COLOR);
+      XSetWindowBorderWidth(wm.display, frame, BORDER_FOCUSED_WIDTH);
+    }
+  }
+
+  wm.focused_Window = w;
+  XSync(wm.display, false);
+
+}
+
+
+void setFocusToWindow(Window w){
+  if(w != None && clientWindowExists(w)){
+    XRaiseWindow(wm.display, getFrameWindow(w));
+    XSetInputFocus(wm.display, w, RevertToParent, CurrentTime);
+    updateWindowBorders(w);
+  }
+  else{
+    XSetInputFocus(wm.display, wm.root, RevertToParent, CurrentTime);
+    updateWindowBorders(None);
+  }
+}
+
 void focusNextWindow(){
   if(wm.clients_count == 0){
     XSetInputFocus(wm.display, wm.root, RevertToParent, CurrentTime);
@@ -303,12 +341,12 @@ void focusNextWindow(){
 
   for(uint32_t i = 0; i < wm.clients_count; i++){
     if(wm.client_windows[i].desktopIndex == wm.currentDesktop){
-      XRaiseWindow(wm.display, wm.client_windows[i].frame);
-      XSetInputFocus(wm.display, wm.client_windows[i].win, RevertToParent, CurrentTime);
+      setFocusToWindow(wm.client_windows[i].win);
       return;
     }
   }
   XSetInputFocus(wm.display, wm.root, RevertToParent, CurrentTime);
+  updateWindowBorders(None);
 }
 
 void handleConfigureRequst(XEvent *ev){
@@ -345,10 +383,14 @@ void handleKeyPress(XEvent *ev){
   int revert_to;
   XGetInputFocus(wm.display, &focusedWindow, &revert_to);
 
+  if(focusedWindow == wm.root && focusedWindow == None){
+    focusedWindow = wm.focused_Window;
+  }
+
   if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, KILL_KEY)){
-    if(clientWindowExists(focusedWindow) || focusedWindow != wm.root){
+    if(clientWindowExists(focusedWindow) && focusedWindow != wm.root){
       int32_t closingIndex = getClientIndex(focusedWindow);
-      
+    
       Atom* protocols;
       int32_t num_protocols;
       if(XGetWMProtocols(wm.display, focusedWindow, &protocols, &num_protocols) 
@@ -364,16 +406,28 @@ void handleKeyPress(XEvent *ev){
         if(nextIndex == closingIndex){
           nextIndex = (closingIndex - 1 + wm.clients_count) % wm.clients_count;
         }
-        XRaiseWindow(wm.display, wm.client_windows[nextIndex].frame);
-        XSetInputFocus(wm.display, wm.client_windows[nextIndex].win, RevertToParent, CurrentTime);
+        int startIndex = nextIndex;
+        while(wm.client_windows[nextIndex].desktopIndex != wm.currentDesktop){
+          nextIndex = (nextIndex + 1) % wm.clients_count;
+          if(nextIndex == startIndex) break;
+        }
+        if(wm.client_windows[nextIndex].desktopIndex == wm.currentDesktop){
+          setFocusToWindow(wm.client_windows[nextIndex].win);
+        }
+        else{
+          focusNextWindow();
+        }
       }
-      else{// no more windows, focus root
+      else{
         XSetInputFocus(wm.display, wm.root, RevertToParent, CurrentTime);
       }
     }
   }
   else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, TERMINAL_KEY)){
     system(TERMINAL_CMD);
+  }
+  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, ROFI_KEY)){
+    system(ROFI_CMD);
   }
   else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, GAP_INCREASE_KEY)){
     wm.windowGap = MIN(wm.windowGap + 2, 100);
@@ -441,8 +495,7 @@ void handleKeyPress(XEvent *ev){
       for(uint32_t i = 1; i < wm.clients_count; i++){
         uint32_t nextIndex = (currentIndex + i) % wm.clients_count;
         if(wm.client_windows[nextIndex].desktopIndex == wm.currentDesktop){
-          XRaiseWindow(wm.display, wm.client_windows[nextIndex].frame);
-          XSetInputFocus(wm.display, wm.client_windows[nextIndex].win, RevertToParent, CurrentTime);
+          setFocusToWindow(wm.client_windows[nextIndex].win);
           break;
         }
       }
@@ -473,7 +526,7 @@ void handleMapRequest(XEvent *ev){
 
   Window frame = getFrameWindow(e->window);
   XRaiseWindow(wm.display, frame);
-  XSetInputFocus(wm.display, e->window, RevertToParent, CurrentTime);
+  setFocusToWindow(e->window);
 }
 
 void handleUnmapNotify(XEvent *ev){
@@ -498,6 +551,7 @@ void handleUnmapNotify(XEvent *ev){
   }
   else if(wm.clients_count == 0){
     XSetInputFocus(wm.display, wm.root, RevertToParent, CurrentTime);
+    updateWindowBorders(None);
   }
   XSync(wm.display, false);
 }
@@ -583,7 +637,7 @@ void setFullscreen(Window w){
   int screenWidth = DisplayWidth(wm.display, screen);
   int screenHeight = DisplayHeight(wm.display, screen);
   // BUG HERE (full screen right now only works with gaps TODO: make actual fullscreen toggable) 
-  XMoveResizeWindow(wm.display, frame, wm.windowGap, wm.windowGap, screenWidth - wm.windowGap * 2, screenHeight - wm.windowGap * 2);
+  XMoveResizeWindow(wm.display, frame, wm.windowGap - BORDER_WIDTH, wm.windowGap - BORDER_WIDTH, screenWidth - wm.windowGap * 2, screenHeight - wm.windowGap * 2);
   XResizeWindow(wm.display, w, screenWidth - wm.windowGap * 2, screenHeight - wm.windowGap * 2);
 }
 
@@ -696,7 +750,7 @@ void retileLayout(){
 
     Client *master = clients[0];
     if(client_count == 1){
-      XMoveWindow(wm.display, master->frame, wm.windowGap, wm.windowGap);
+      XMoveWindow(wm.display, master->frame, wm.windowGap - BORDER_WIDTH, wm.windowGap - BORDER_WIDTH);
       int frameWidth = wm.screenWidth - 2 * wm.windowGap;
       int frameHeight = wm.screenHeight - 2 * wm.windowGap;
       XResizeWindow(wm.display, master->frame, frameWidth, frameHeight);
@@ -707,7 +761,7 @@ void retileLayout(){
       }
       return;
     } 
-    XMoveWindow(wm.display, master->frame, wm.windowGap, wm.windowGap);
+    XMoveWindow(wm.display, master->frame, wm.windowGap - BORDER_WIDTH, wm.windowGap - BORDER_WIDTH);
     int masterFrameWidth = wm.screenWidth/2 - wm.windowGap - (wm.windowGap/2);
     int masterFrameHeight = wm.screenHeight - 2 * wm.windowGap;
     XResizeWindow(wm.display, master->frame, masterFrameWidth, masterFrameHeight);
@@ -722,7 +776,7 @@ void retileLayout(){
     for(uint32_t i = 1; i < client_count; i++){
       Client *client = clients[i]; 
       int32_t stackY = wm.windowGap + (i - 1) * (stackFrameHeight + wm.windowGap);
-      XMoveWindow(wm.display, client->frame, stackX, stackY);
+      XMoveWindow(wm.display, client->frame, stackX - BORDER_WIDTH, stackY - BORDER_WIDTH);
       XResizeWindow(wm.display, client->frame, stackFrameWidth, stackFrameHeight);
       XResizeWindow(wm.display, client->win, stackFrameWidth, stackFrameHeight);
       XSetWindowBorderWidth(wm.display, client->frame, BORDER_WIDTH);
@@ -730,6 +784,11 @@ void retileLayout(){
         client->fullscreen = false;
       }
     }
+
+    if(wm.focused_Window != None && clientWindowExists(wm.focused_Window)){
+      updateWindowBorders(wm.focused_Window);
+    }
+
     XSync(wm.display, false);
   } 
 }
@@ -766,6 +825,8 @@ void xwmWindowFrame(Window win, bool createdBeforeWindowManager){
     BG_COLOR
   );
 
+  XReparentWindow(wm.display, win, winFrame, 0, 0);
+
   XSelectInput(
     wm.display,
     winFrame,
@@ -774,7 +835,6 @@ void xwmWindowFrame(Window win, bool createdBeforeWindowManager){
   );
 
   XAddToSaveSet(wm.display, win);
-  XReparentWindow(wm.display, win, winFrame, 0, 0);
   XResizeWindow(wm.display, win, attribs.width, attribs.height);
   XMapWindow(wm.display, winFrame);
 

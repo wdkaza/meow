@@ -8,10 +8,12 @@
 
 #define TERMINAL_CMD "kitty &"
 #define BROWSER_CMD "firefox &"
+#define ROFI_CMD "rofi -show &"
 
 #define MASTER_KEY Mod1Mask // alt by default
 
 #define KILL_KEY XK_Q // kill window
+#define ROFI_KEY XK_slash // "/"
 #define TERMINAL_KEY XK_Return
 #define BROWSER_KEY XK_W
 #define FULLSCREEN_KEY XK_F
@@ -33,5 +35,9 @@
 #define DESKTOP_CYCLE_DOWN XK_X
 
 #define BORDER_WIDTH 4
+#define BORDER_FOCUSED_WIDTH 4 // currently a bit broken visually(layout will look ugly)
 #define BORDER_COLOR 0xffb6c1
+#define BORDER_FOCUSED_COLOR 0xe76f7f
 #define BG_COLOR 0x000000
+
+
