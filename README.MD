@@ -1,9 +1,10 @@
 # meow
-A very lightweight and minimal X window manager made in C, insipired by i3 and ragnarWM.<br>
+A very lightweight and minimal X window manager made in C, insipired by i3, dwm and ragnarWM.<br>
 Minimal, no desktop bloat, no unnecessary features. Just clean.<br><br><br>
 
 ![preview](picture.png)
 <br><br><br>
+## Features<br>
 So far meow has support for:<br>
 - [x] Fullscreen<br>
 - [x] Tiling layouts(just one currently)<br>
