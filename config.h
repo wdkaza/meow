@@ -3,6 +3,8 @@
 
 // multi monitors not supported since i have no wqay to debug them
 
+// default keybinds suck TODO make them better later
+
 #define MONITOR_WIDTH 1920
 #define MONITOR_HEIGHT 1080
 
@@ -12,7 +14,7 @@
 
 #define MASTER_KEY Mod1Mask // alt by default
 
-#define KILL_KEY XK_Q // kill window
+#define KILL_KEY XK_Q // kill
 #define ROFI_KEY XK_slash // "/"
 #define TERMINAL_KEY XK_Return
 #define BROWSER_KEY XK_W
@@ -40,4 +42,13 @@
 #define BORDER_FOCUSED_COLOR 0xe76f7f
 #define BG_COLOR 0x000000
 
+#define BAR_HEIGHT 24
+#define BAR_COLOR 0x282a36
+#define BAR_FONT "Hack"
+#define BAR_FONT_SIZE 20
+#define BAR_FONT_COLOR "#f8f8f8"
+#define BAR_PADDING_X 10
+#define BAR_PADDING_Y 10
 
+#define BAR_HIDE_KEY XK_M
+#define BAR_SHOW_KEY XK_N
