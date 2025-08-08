@@ -10,7 +10,7 @@ So far meow has support for:<br>
 - [x] Tiling layouts(just one currently)<br>
 - [x] Window borders<br>
 - [x] Gaps between windows in a layout<br>
-- [ ] Built in bar<br>
+- [ ] Built in bar(in progress)<br>
 - [ ] Hover to select windows<br>
 - [ ] Multiple monitors<br><br><br><br>
   
@@ -20,7 +20,8 @@ So far meow has support for:<br>
 <br>
 
 ⚠️It still has alot of bugs i would like to fix them before providing a way to install it⚠️<br>
-For example there is no way to reset the config, you need to relaunch the entire thing and thats a light one.<br>
+For example if you close all windows on any desktop that is not "0" you will just lose control of the WM<br>
+its an easy fix but there are alot of bugs i would like to fix and i want to add atleast a customizable bar before releasing meow<br>
 But if you'd like to see this project get finished someday give it a star and i will try my best to finish it⭐
 
 I want to mention github.com/cococry/ragnar as ragnar's old code helped me understand alot of things,<br>
