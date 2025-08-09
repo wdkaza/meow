@@ -7,6 +7,7 @@
 #include <X11/XKBlib.h>
 #include <X11/cursorfont.h>
 #include "config.h"
+#include <sys/select.h>
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -15,6 +16,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <assert.h>
+#include <time.h>
 
 // thanks @cococry for some of the code
 // @cococry also insipered me to try to code this 
@@ -22,6 +24,9 @@
 // it helpmed me so much to understand how to even start making a wm
 
 #define CLIENT_WINDOW_CAP 256
+
+#define LEFT_ALIGN 0
+#define CENTER_ALIGN 1
 
 #define MIN(a, b) (((a)<(b))?(a):(b))
 #define MAX(a, b) ((a) > (b) ? (a) : b)
@@ -106,6 +111,7 @@ static void unsetFullscreen(Window w);
 static void initDesktops();
 static void setFullscreen(Window w);
 static Atom* findAtomPtrRange(Atom* ptr1, Atom* ptr2, Atom val);
+static bool desktopHasWindows(int desktop);
 static void initBar();
 static void updateBar();
 static void hideBar();
@@ -224,11 +230,14 @@ void xwm_run(){
   wm.cursor_start_pos = (Vec2){ .x = 0.0f, .y = 0.0f};
   wm.windowGap = START_WINDOW_GAP;
   wm.currentLayout = WINDOW_LAYOUT_TILED_MASTER;
+  wm.currentDesktop = 1;
   wm.ATOM_WM_PROTOCOLS = XInternAtom(wm.display, "WM_PROTOCOLS", false);
   wm.ATOM_WM_DELETE_WINDOW = XInternAtom(wm.display, "WM_DELETE_WINDOW", false);
 
   initBar();
   initDesktops();
+
+  static time_t last_update = 0;
 
   while(wm.running){
     if(XPending(wm.display)){
@@ -266,7 +275,11 @@ void xwm_run(){
           handleKeyRelease(&ev);
           break;
       }
-      updateBar(); // temporary because it probably eats alot of recourses
+    }
+    time_t now = time(NULL);
+    if(now != last_update) {
+      updateBar();
+      last_update = now;
     }
   }
 }
@@ -588,9 +601,6 @@ void handleMapRequest(XEvent *ev){
 
 void handleUnmapNotify(XEvent *ev){
   XUnmapEvent *e = &ev->xunmap;
-  if(!clientWindowExists(e->window) || e->event == wm.root){
-    return;
-  }
 
   if(e->window == wm.bar.win){
     return;
@@ -740,6 +750,89 @@ void unhideBar(){
   retileLayout();
 }
 
+void drawText(Window win, const char *text, int alignment, bool highligted){
+  if(!text || strlen(text) == 0) return;
+
+  XWindowAttributes attrs;
+  XGetWindowAttributes(wm.display, win, &attrs);
+  XGlyphInfo extents;
+  XftTextExtentsUtf8(wm.display, wm.bar.font, (XftChar8*)text, strlen(text), &extents);
+
+  int x,y;
+  y = (attrs.height + wm.bar.font->ascent - wm.bar.font->descent) / 2;
+
+  switch(alignment){
+    case LEFT_ALIGN:
+      x = 10;
+      break;
+    case CENTER_ALIGN:
+      x = (attrs.width - extents.width) / 2;
+      break;
+    default:
+      x = 10;
+      break;
+  }
+
+  XftColor xftColor;
+  const char* colorName = highligted ? DESKTOP_HIGHLIGHT_COLOR : BAR_FONT_COLOR;
+  XftColorAllocName(wm.display, DefaultVisual(wm.display, DefaultScreen(wm.display)),
+                DefaultColormap(wm.display, DefaultScreen(wm.display)),
+                colorName,
+                &xftColor);
+  
+  XftDrawStringUtf8(wm.bar.draw, &xftColor, wm.bar.font, x, y, (XftChar8*)text, strlen(text));
+
+  XftColorFree(wm.display,
+               DefaultVisual(wm.display, DefaultScreen(wm.display)),
+               DefaultColormap(wm.display, DefaultScreen(wm.display)),
+               &xftColor);
+}
+
+void updateBar(){
+  if(wm.bar.hidden) return;
+
+  XClearWindow(wm.display, wm.bar.win);
+
+  char desktopStr[256] = "";
+  bool first = true;
+
+  for(int i = 0; i < DESKTOP_COUNT; i++){
+    if(desktopHasWindows(i)){
+      if(!first){
+        strcat(desktopStr, "-");
+      }
+      char tmp[8];
+      if(i == wm.currentDesktop){
+        sprintf(tmp, "[%d]", i);
+      }
+      else{
+        sprintf(tmp, "%d", i);
+      }
+      strcat(desktopStr, tmp);
+      first = false;
+    }
+  }
+
+  drawText(wm.bar.win, desktopStr, CENTER_ALIGN, true); 
+
+  time_t t = time(NULL);
+  struct tm *tmInfo = localtime(&t);
+  char timeStr[64];
+  strftime(timeStr, sizeof(timeStr), "%H:%M:%S", tmInfo);
+
+  drawText(wm.bar.win, timeStr, LEFT_ALIGN, false);
+
+  XFlush(wm.display);
+}
+
+bool desktopHasWindows(int desktop){
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+    if(wm.client_windows[i].desktopIndex == desktop) return true;
+  }
+  return false;
+}
+
+/*
 void updateBar(){
   if(wm.bar.hidden) return;
   XClearWindow(wm.display, wm.bar.win);
@@ -754,6 +847,7 @@ void updateBar(){
 
   XSync(wm.display, False);
 }
+*/
 
 void changeDesktop(int32_t desktopIndex){
   if(desktopIndex < 0 || desktopIndex >= DESKTOP_COUNT) return;
@@ -806,27 +900,45 @@ Atom* findAtomPtrRange(Atom* ptr1, Atom* ptr2, Atom val){
   }
   return ptr2;
 }
-// both functions below broken 
+
 void moveClientUpLayout(Client *client){ // bug : ignores multiple desktops
   int32_t clientIndex = getClientIndex(client->win);
   if(clientIndex == -1 || wm.clients_count <= 1) return;
 
-  uint32_t upperIndex = (clientIndex == (int32_t)wm.clients_count -1) ? 0 : clientIndex + 1;
+  int32_t targetIndex = -1;
+  for(uint32_t i = 1; i < wm.clients_count; i++){
+    int32_t idx = (clientIndex + i) % wm.clients_count;
+    if(wm.client_windows[idx].desktopIndex == client->desktopIndex){
+      targetIndex = idx;
+      break;
+    }
+  }
+  if(targetIndex == -1) return;
+
   Client tmp = wm.client_windows[clientIndex];
-  wm.client_windows[clientIndex] = wm.client_windows[upperIndex];
-  wm.client_windows[upperIndex] = tmp;
+  wm.client_windows[clientIndex] = wm.client_windows[targetIndex];
+  wm.client_windows[targetIndex] = tmp;
   retileLayout();
 }
 
-void moveClientDownLayout(Client *client){ // bug : ignores multiple desktops
+void moveClientDownLayout(Client *client){
   int32_t clientIndex = getClientIndex(client->win);
 
   if(clientIndex == -1 || wm.clients_count <= 1) return;
 
-  uint32_t lowerIndex = (clientIndex == 0) ? wm.clients_count - 1 : (uint32_t)(clientIndex - 1);
+  int32_t targetIndex = -1;
+  for(uint32_t i = 1; i < wm.clients_count; i++){
+    int32_t idx = (clientIndex - (int32_t)i + (int32_t)wm.clients_count) % (int32_t)wm.clients_count;
+    if(wm.client_windows[idx].desktopIndex == client->desktopIndex){
+      targetIndex = idx;
+      break;
+    }
+  }
+  if(targetIndex == -1) return;
+
   Client tmp = wm.client_windows[clientIndex];
-  wm.client_windows[clientIndex] = wm.client_windows[lowerIndex];
-  wm.client_windows[lowerIndex] = tmp;
+  wm.client_windows[clientIndex] = wm.client_windows[targetIndex];
+  wm.client_windows[targetIndex] = tmp;
   retileLayout();
 }
 

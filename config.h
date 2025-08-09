@@ -49,6 +49,7 @@
 #define BAR_FONT_COLOR "#f8f8f8"
 #define BAR_PADDING_X 10
 #define BAR_PADDING_Y 10
+#define DESKTOP_HIGHLIGHT_COLOR "#f8f8f8"
 
 #define BAR_HIDE_KEY XK_M
 #define BAR_SHOW_KEY XK_N
