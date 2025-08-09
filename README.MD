@@ -26,3 +26,4 @@ But if you'd like to see this project get finished someday give it a star and i 
 
 I want to mention github.com/cococry/ragnar as ragnar's old code helped me understand alot of things,<br>
 Make sure to check it out aswell!<br><br>
+
