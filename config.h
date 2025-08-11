@@ -38,8 +38,8 @@
 
 #define BORDER_WIDTH 4
 #define BORDER_FOCUSED_WIDTH 4 // currently a bit broken visually(layout will look ugly)
-#define BORDER_COLOR 0xffb6c1
-#define BORDER_FOCUSED_COLOR 0xe76f7f
+#define BORDER_COLOR 0x404231
+#define BORDER_FOCUSED_COLOR 0xf2fcb1
 #define BG_COLOR 0x000000
 
 #define SHOW_BATTERY 1

@@ -199,7 +199,6 @@ void xwm_run(){
 
   Cursor cursor = XCreateFontCursor(wm.display, XC_left_ptr);
   XDefineCursor(wm.display, wm.root, cursor);
-  XSync(wm.display, false);
 
   XSelectInput(wm.display, wm.root, SubstructureRedirectMask | SubstructureNotifyMask);
   XSync(wm.display, false);
@@ -224,7 +223,6 @@ void xwm_run(){
     XGrabKey(wm.display, keycode, MASTER_KEY | ShiftMask, wm.root, false, GrabModeAsync, GrabModeAsync);
   }
   
-  
   wm.clients_count = 0;
   wm.cursor_start_frame_size = (Vec2){ .x = 0.0f, .y = 0.0f};
   wm.cursor_start_frame_pos = (Vec2){ .x = 0.0f, .y = 0.0f};
@@ -238,49 +236,65 @@ void xwm_run(){
   initBar();
   initDesktops();
 
-  static time_t last_update = 0;
+  int xfd`` = XConnectionNumber(wm.display);
+  fd_set readFds;
+  struct timeval timeout;
+  bool barNeedsUpdate = true;
 
   while(wm.running){
-    if(XPending(wm.display)){
-      XEvent ev;
-      XNextEvent(wm.display, &ev);
+    FD_ZERO(&read_fds);
+    FD_SET(x11_fd, &read_fds);
+    
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
+    
+    int ready = select(xfd + 1, &readFds, NULL, NULL, &timeout);
+    
+    if(ready > 0 && FD_ISSET(x11_fd, &readFds)){
+      while (XPending(wm.display)) {
+        XEvent ev;
+        XNextEvent(wm.display, &ev);
 
-      switch(ev.type){
-        default:
-          break;
-        case MapRequest:
-          handleMapRequest(&ev);
-          break;
-        case UnmapNotify:
-          handleUnmapNotify(&ev);
-          break;
-        case DestroyNotify:
-          handleDestroyNotify(&ev);
-          break;
-        case ConfigureNotify:
-          handleConfigureNotify(&ev);
-          break;
-        case ConfigureRequest:
-          handleConfigureRequst(&ev);
-          break;
-       case ButtonPress:
-          handleButtonPress(&ev);
-          break;
-        case MotionNotify:
-          handleMotionNotify(&ev);
-          break;
-        case KeyPress:
-          handleKeyPress(&ev);
-          break;
-        case KeyRelease:
-          handleKeyRelease(&ev);
-          break;
+        switch(ev.type){
+          default:
+            break;
+          case MapRequest:
+            handleMapRequest(&ev);
+            barNeedsUpdate = true;
+            break;
+          case UnmapNotify:
+            handleUnmapNotify(&ev);
+            bar_needs_update = true;
+            break;
+          case DestroyNotify:
+            handleDestroyNotify(&ev);
+            barNeedsUpdate = true;
+            break;
+          case ConfigureNotify:
+            handleConfigureNotify(&ev);
+            break;
+          case ConfigureRequest:
+            handleConfigureRequst(&ev);
+            break;
+          case ButtonPress:
+            handleButtonPress(&ev);
+            break;
+          case MotionNotify:
+            handleMotionNotify(&ev);
+            break;
+          case KeyPress:
+            handleKeyPress(&ev);
+            barNeedsUpdate = true;
+            break;
+          case KeyRelease:
+            handleKeyRelease(&ev);
+            break;
+        }
       }
     }
-    time_t now = time(NULL);
-    if(now != last_update) {
+    if(barNeedsUpdate || ready == 0){ 
       updateBar();
-      last_update = now;
+      barNeedsUpdate = false;
     }
   }
 }
