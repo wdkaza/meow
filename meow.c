@@ -236,21 +236,21 @@ void xwm_run(){
   initBar();
   initDesktops();
 
-  int xfd`` = XConnectionNumber(wm.display);
+  int xfd = XConnectionNumber(wm.display);
   fd_set readFds;
   struct timeval timeout;
   bool barNeedsUpdate = true;
 
   while(wm.running){
-    FD_ZERO(&read_fds);
-    FD_SET(x11_fd, &read_fds);
+    FD_ZERO(&readFds);
+    FD_SET(xfd, &readFds);
     
     timeout.tv_sec = 1;
     timeout.tv_usec = 0;
     
     int ready = select(xfd + 1, &readFds, NULL, NULL, &timeout);
     
-    if(ready > 0 && FD_ISSET(x11_fd, &readFds)){
+    if(ready > 0 && FD_ISSET(xfd, &readFds)){
       while (XPending(wm.display)) {
         XEvent ev;
         XNextEvent(wm.display, &ev);
@@ -264,7 +264,7 @@ void xwm_run(){
             break;
           case UnmapNotify:
             handleUnmapNotify(&ev);
-            bar_needs_update = true;
+            barNeedsUpdate = true;
             break;
           case DestroyNotify:
             handleDestroyNotify(&ev);
