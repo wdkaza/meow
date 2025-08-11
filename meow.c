@@ -27,6 +27,7 @@
 
 #define LEFT_ALIGN 0
 #define CENTER_ALIGN 1
+#define RIGHT_ALIGN 2
 
 #define MIN(a, b) (((a)<(b))?(a):(b))
 #define MAX(a, b) ((a) > (b) ? (a) : b)
@@ -514,7 +515,7 @@ void handleKeyPress(XEvent *ev){
         unsetFullscreen(wm.client_windows[i].frame);
       }
     }
-    retileLayout();
+   retileLayout();
   }
   else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, SET_WINDOW_LAYOUT_FLOATING)){
     wm.currentLayout = WINDOW_LAYOUT_FLOATING;
@@ -776,6 +777,9 @@ void drawText(Window win, const char *text, int alignment, bool highligted){
     case CENTER_ALIGN:
       x = (attrs.width - extents.width) / 2;
       break;
+    case RIGHT_ALIGN:
+      x = attrs.width - extents.width - 10;
+      break;
     default:
       x = 10;
       break;
@@ -794,6 +798,18 @@ void drawText(Window win, const char *text, int alignment, bool highligted){
                DefaultVisual(wm.display, DefaultScreen(wm.display)),
                DefaultColormap(wm.display, DefaultScreen(wm.display)),
                &xftColor);
+}
+
+int getBatteryPercentage(){
+  FILE *fp = fopen("/sys/class/power_supply/BAT0/capacity", "r");
+  if(!fp) return -1;
+  int percentage;
+  if(fscanf(fp, "%d", &percentage) != 1){
+    fclose(fp);
+    return -1;
+  }
+  fclose(fp);
+  return percentage;
 }
 
 void updateBar(){
@@ -829,6 +845,13 @@ void updateBar(){
   strftime(timeStr, sizeof(timeStr), "%H:%M:%S", tmInfo);
 
   drawText(wm.bar.win, timeStr, LEFT_ALIGN, false);
+
+  if(SHOW_BATTERY){
+    int battery = getBatteryPercentage();
+    char batteryStr[32];
+    sprintf(batteryStr, "%d%%", battery);
+    drawText(wm.bar.win, batteryStr, RIGHT_ALIGN, false);
+  }
 
   XFlush(wm.display);
 }

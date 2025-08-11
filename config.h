@@ -42,6 +42,8 @@
 #define BORDER_FOCUSED_COLOR 0xe76f7f
 #define BG_COLOR 0x000000
 
+#define SHOW_BATTERY 1
+
 #define BAR_HEIGHT 24
 #define BAR_COLOR 0x282a36
 #define BAR_FONT "JetBrains Mono Nerd Font:size11:style=bold"
