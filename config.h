@@ -44,8 +44,8 @@
 
 #define BAR_HEIGHT 24
 #define BAR_COLOR 0x282a36
-#define BAR_FONT "Hack"
-#define BAR_FONT_SIZE 20
+#define BAR_FONT "JetBrains Mono Nerd Font:size11:style=bold"
+#define BAR_FONT_SIZE 18
 #define BAR_FONT_COLOR "#f8f8f8"
 #define BAR_PADDING_X 10
 #define BAR_PADDING_Y 10

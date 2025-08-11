@@ -408,6 +408,12 @@ void focusNextWindow(){
       return;
     }
   }
+
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+    setFocusToWindow(wm.client_windows[i].win);
+    return;
+  }
+
   XSetInputFocus(wm.display, wm.root, RevertToParent, CurrentTime);
   updateWindowBorders(None);
 }
@@ -478,7 +484,7 @@ void handleKeyPress(XEvent *ev){
           setFocusToWindow(wm.client_windows[nextIndex].win);
         }
         else{
-          focusNextWindow();
+          XSetInputFocus(wm.display, wm.root, RevertToParent, CurrentTime);
         }
       }
       else{
@@ -613,16 +619,18 @@ void handleUnmapNotify(XEvent *ev){
   Window focusedWindow;
   int revert_to;
   XGetInputFocus(wm.display, &focusedWindow, &revert_to);
-  bool was_focused = (focusedWindow == e->window);
+  int32_t desktopIndex = wm.client_windows[closingIndex].desktopIndex;
+  //bool was_focused = (focusedWindow == e->window);
 
   xwmWindowUnframe(e->window);
-
-  if(was_focused && wm.clients_count > 0){
-    focusNextWindow();
-  }
-  else if(wm.clients_count == 0){
-    XSetInputFocus(wm.display, wm.root, RevertToParent, CurrentTime);
-    updateWindowBorders(None);
+  focusNextWindow();
+  if(!desktopHasWindows(desktopIndex)){ // a bad fix to a bug where wm would shoot itself in a leg and die
+    for(int32_t i = 0; i < DESKTOP_COUNT; i++){
+      if(desktopHasWindows(i)){
+        changeDesktop(i);
+        break;
+      }
+    }
   }
   XSync(wm.display, false);
 }
@@ -901,7 +909,7 @@ Atom* findAtomPtrRange(Atom* ptr1, Atom* ptr2, Atom val){
   return ptr2;
 }
 
-void moveClientUpLayout(Client *client){ // bug : ignores multiple desktops
+void moveClientUpLayout(Client *client){
   int32_t clientIndex = getClientIndex(client->win);
   if(clientIndex == -1 || wm.clients_count <= 1) return;
 
