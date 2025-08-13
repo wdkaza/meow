@@ -9,6 +9,8 @@
 #include "config.h"
 #include <sys/select.h>
 
+// new bug, spawning a window doesnt map on the screen until next event
+
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -28,6 +30,8 @@
 #define LEFT_ALIGN 0
 #define CENTER_ALIGN 1
 #define RIGHT_ALIGN 2
+#define RIGHT_ALIGN2 3
+#define RIGHT_ALIGN3 4
 
 #define MIN(a, b) (((a)<(b))?(a):(b))
 #define MAX(a, b) ((a) > (b) ? (a) : b)
@@ -217,6 +221,12 @@ void xwm_run(){
   XGrabKey(wm.display, XKeysymToKeycode(wm.display, WINDOW_LAYOUT_MOVE_DOWN), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
   XGrabKey(wm.display, XKeysymToKeycode(wm.display, BAR_HIDE_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
   XGrabKey(wm.display, XKeysymToKeycode(wm.display, BAR_SHOW_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, VOLUME_MUTE_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, VOLUME_UP_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, VOLUME_DOWN_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, BRIGHTNESS_UP_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, BRIGHTNESS_DOWN_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
+  XGrabKey(wm.display, XKeysymToKeycode(wm.display, BRIGHTNESS_MIN_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
   for (int i = 0; i < 10; i++){
     KeyCode keycode = XKeysymToKeycode(wm.display, XK_0 + i);
     XGrabKey(wm.display, keycode, MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
@@ -513,6 +523,24 @@ void handleKeyPress(XEvent *ev){
   else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, ROFI_KEY)){
     system(ROFI_CMD);
   }
+  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, VOLUME_UP_KEY)){
+    system(VOLUME_UP_CMD);
+  }
+  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, VOLUME_DOWN_KEY)){
+    system(VOLUME_DOWN_CMD);
+  }
+  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, VOLUME_MUTE_KEY)){
+    system(VOLUME_MUTE_CMD);
+  }
+  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, BRIGHTNESS_UP_KEY)){
+    system(BRIGHTNESS_UP_CMD);
+  }
+  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, BRIGHTNESS_DOWN_KEY)){
+    system(BRIGHTNESS_DOWN_CMD);
+  }
+  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, BRIGHTNESS_MIN_KEY)){
+    system(BRIGHTNESS_MIN_CMD);
+  }
   else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, GAP_INCREASE_KEY)){
     wm.windowGap = MIN(wm.windowGap + 2, 100);
     retileLayout();
@@ -773,6 +801,49 @@ void unhideBar(){
   retileLayout();
 }
 
+int getVolumePercentage(){
+  FILE *fp;
+  char buffer[256];
+  int volume = 0;
+  fp = popen("pactl get-sink-volume @DEFAULT_SINK@ | grep -o '[0-9]*%' | head -1", "r");
+  if(fp != NULL){
+    if(fgets(buffer, sizeof(buffer), fp) != NULL){
+      sscanf(buffer, "%d%%", &volume);
+      }
+    pclose(fp);
+  }
+  return volume;
+}
+
+int getBrightnessPercentage(){
+  FILE *fp;
+  char buffer[64];
+  int current = 0;
+  int max = 0;
+    
+  fp = popen("brightnessctl g", "r");
+  if(fp != NULL){
+    if(fgets(buffer, sizeof(buffer), fp) != NULL){
+      current = atoi(buffer);
+    }
+    pclose(fp);
+  }  
+  fp = popen("brightnessctl m", "r");
+  if(fp != NULL){
+    if(fgets(buffer, sizeof(buffer), fp) != NULL){
+      max = atoi(buffer);
+    }
+    pclose(fp);
+  }
+
+  if(max > 0){
+    return (current * 100) / max;
+  } 
+  else{
+    return 0;
+  }
+}
+
 void drawText(Window win, const char *text, int alignment, bool highligted){
   if(!text || strlen(text) == 0) return;
 
@@ -793,6 +864,12 @@ void drawText(Window win, const char *text, int alignment, bool highligted){
       break;
     case RIGHT_ALIGN:
       x = attrs.width - extents.width - 10;
+      break;
+    case RIGHT_ALIGN2:
+      x = attrs.width - extents.width - 150;
+      break;
+    case RIGHT_ALIGN3:
+      x = attrs.width - extents.width - 300; //hard coded values for now
       break;
     default:
       x = 10;
@@ -863,9 +940,19 @@ void updateBar(){
   if(SHOW_BATTERY){
     int battery = getBatteryPercentage();
     char batteryStr[32];
-    sprintf(batteryStr, "%d%%", battery);
+    sprintf(batteryStr, "BATTERY: %d%%", battery);
     drawText(wm.bar.win, batteryStr, RIGHT_ALIGN, false);
   }
+
+  int volume = getVolumePercentage();
+  char volumeStr[32];
+  sprintf(volumeStr, "VOLUME: %d%% |", volume);
+  drawText(wm.bar.win, volumeStr, RIGHT_ALIGN2, false);
+
+  int brightness = getBrightnessPercentage();
+  char brigthnessStr[32];
+  sprintf(brigthnessStr, "BRIGHTNESS: %d%% |", brightness);
+  drawText(wm.bar.win, brigthnessStr, RIGHT_ALIGN3, false);
 
   XFlush(wm.display);
 }

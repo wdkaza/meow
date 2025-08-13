@@ -12,6 +12,14 @@
 #define BROWSER_CMD "firefox &"
 #define ROFI_CMD "rofi -show &"
 
+#define VOLUME_UP_CMD "pactl set-sink-volume @DEFAULT_SINK@ +5%"
+#define VOLUME_DOWN_CMD "pactl set-sink-volume @DEFAULT_SINK@ -5%"
+#define VOLUME_MUTE_CMD "pactl set-sink-mute @DEFAULT_SINK@ toggle"
+
+#define BRIGHTNESS_UP_CMD "brightnessctl set +5%"
+#define BRIGHTNESS_DOWN_CMD "brightnessctl set 5%-"
+#define BRIGHTNESS_MIN_CMD "brightnessctl set 1%"
+
 #define MASTER_KEY Mod1Mask // alt by default
 
 #define KILL_KEY XK_Q // kill
@@ -20,6 +28,14 @@
 #define BROWSER_KEY XK_W
 #define FULLSCREEN_KEY XK_F
 #define CYCLE_WINDOWS_KEY XK_Tab
+
+#define VOLUME_UP_KEY XK_F3
+#define VOLUME_DOWN_KEY XK_F2
+#define VOLUME_MUTE_KEY XK_F1
+
+#define BRIGHTNESS_UP_KEY XK_F6
+#define BRIGHTNESS_DOWN_KEY XK_F5
+#define BRIGHTNESS_MIN_KEY XK_F7
 
 #define START_WINDOW_GAP 20
 #define GAP_INCREASE_KEY XK_U
