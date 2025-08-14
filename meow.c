@@ -644,6 +644,7 @@ void handleMapRequest(XEvent *ev){
 
   Window frame = getFrameWindow(e->window);
   XRaiseWindow(wm.display, frame);
+  XSync(wm.display, false);
   setFocusToWindow(e->window);
   updateBar();
 }
@@ -944,15 +945,15 @@ void updateBar(){
     drawText(wm.bar.win, batteryStr, RIGHT_ALIGN, false);
   }
 
-  int volume = getVolumePercentage();
-  char volumeStr[32];
-  sprintf(volumeStr, "VOLUME: %d%% |", volume);
-  drawText(wm.bar.win, volumeStr, RIGHT_ALIGN2, false);
+  //int volume = getVolumePercentage(); temporary disabled, will fix tommorow and improve heavily
+  //char volumeStr[32];
+  //sprintf(volumeStr, "VOLUME: %d%% |", volume);
+  //drawText(wm.bar.win, volumeStr, RIGHT_ALIGN2, false);
 
-  int brightness = getBrightnessPercentage();
-  char brigthnessStr[32];
-  sprintf(brigthnessStr, "BRIGHTNESS: %d%% |", brightness);
-  drawText(wm.bar.win, brigthnessStr, RIGHT_ALIGN3, false);
+  //int brightness = getBrightnessPercentage();
+  //char brigthnessStr[32];
+  //sprintf(brigthnessStr, "BRIGHTNESS: %d%% |", brightness);
+  //drawText(wm.bar.win, brigthnessStr, RIGHT_ALIGN3, false); 
 
   XFlush(wm.display);
 }
