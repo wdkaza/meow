@@ -65,9 +65,48 @@
 #define BAR_FONT "JetBrains Mono Nerd Font:size11:style=bold"
 #define BAR_FONT_SIZE 18
 #define BAR_FONT_COLOR "#f8f8f8"
-#define BAR_PADDING_X 10
-#define BAR_PADDING_Y 10
+#define BAR_PADDING_X 0
+#define BAR_PADDING_Y 0
 #define DESKTOP_HIGHLIGHT_COLOR "#f8f8f8"
 
 #define BAR_HIDE_KEY XK_M
 #define BAR_SHOW_KEY XK_N
+
+#define BAR_SEGMENTS_COUNT 3
+
+typedef enum {
+  SEGMENT_LEFT = 0,
+  SEGMENT_CENTER,
+  SEGMENT_RIGHT
+} SegmentPosition;
+
+typedef struct {
+  char name[32];
+  char command[256];
+  char format[64];
+  SegmentPosition position;
+  bool enabled;
+} BarModuleConfig;
+
+// format:
+// .name = 
+// .command = 
+// .format = 
+// .enabled = 
+
+static const BarModuleConfig BarSegments[BAR_SEGMENTS_COUNT] = {
+  {
+    .name = "volume",
+    .command = "pactl get-sink-volume @DEFAULT_SINK@ | grep -o '[0-9]*%' | head -1 | tr -d '%'",
+    .format = "VOL: %d%% |",
+    .position = SEGMENT_RIGHT,
+    .enabled = true
+  },
+  {
+    .name = "brightness",
+    .command = "pactl get-sink-volume @DEFAULT_SINK@ | grep -o '[0-9]*%' | head -1 | tr -d '%'",
+    .format = "BRT: %d%% |",
+    .position = SEGMENT_RIGHT,
+    .enabled = true
+  }
+};

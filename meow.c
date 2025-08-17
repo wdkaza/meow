@@ -27,11 +27,8 @@
 
 #define CLIENT_WINDOW_CAP 256
 
-#define LEFT_ALIGN 0
-#define CENTER_ALIGN 1
-#define RIGHT_ALIGN 2
-#define RIGHT_ALIGN2 3
-#define RIGHT_ALIGN3 4
+
+
 
 #define MIN(a, b) (((a)<(b))?(a):(b))
 #define MAX(a, b) ((a) > (b) ? (a) : b)
@@ -54,6 +51,19 @@ typedef struct {
   int32_t desktopIndex;
 } Client;
 
+typedef enum {
+  SEGMENT_LEFT = 0,
+  SEGMENT_CENTER,
+  SEGMENT_RIGHT
+} SegmentPosition;
+
+typedef struct {
+  int value;
+  time_t lastUpdate;
+  bool needsUpdate;
+  bool valid;
+} BarModuleData;
+
 typedef struct {
   Window win;
   bool hidden;
@@ -61,6 +71,9 @@ typedef struct {
   XftFont *font;
   XftColor color;
   XftDraw* draw;
+
+  BarModuleData modules[BAR_SEGMENTS_COUNT];
+  time_t lastTimeUpdate;
 } Bar;
 
 typedef struct {
@@ -802,47 +815,64 @@ void unhideBar(){
   retileLayout();
 }
 
-int getVolumePercentage(){
-  FILE *fp;
+int executeCommand(const char *command){
+  if(!command || strlen(command) == 0) return -1;
+
+  FILE *fp = popen(command, "r");
+  if(!fp) return -1;
+
   char buffer[256];
-  int volume = 0;
-  fp = popen("pactl get-sink-volume @DEFAULT_SINK@ | grep -o '[0-9]*%' | head -1", "r");
-  if(fp != NULL){
-    if(fgets(buffer, sizeof(buffer), fp) != NULL){
-      sscanf(buffer, "%d%%", &volume);
-      }
-    pclose(fp);
+  int result = -1;
+
+  if(fgets(buffer, sizeof(buffer), fp) != NULL){
+    buffer[strcspn(buffer, "\n")] = 0;
+    result = atoi(buffer);
   }
-  return volume;
+  
+  pclose(fp);
+  return result;
 }
 
-int getBrightnessPercentage(){
-  FILE *fp;
-  char buffer[64];
-  int current = 0;
-  int max = 0;
-    
-  fp = popen("brightnessctl g", "r");
-  if(fp != NULL){
-    if(fgets(buffer, sizeof(buffer), fp) != NULL){
-      current = atoi(buffer);
-    }
-    pclose(fp);
-  }  
-  fp = popen("brightnessctl m", "r");
-  if(fp != NULL){
-    if(fgets(buffer, sizeof(buffer), fp) != NULL){
-      max = atoi(buffer);
-    }
-    pclose(fp);
+bool updateBarModule(int moduleIndex){
+  if(moduleIndex >= BAR_SEGMENTS_COUNT || !BarSegments[moduleIndex].enabled){
+    return false;
+  }
+  
+  time_t currentTime = time(NULL);
+  BarModuleData *module = &wm.bar.modules[moduleIndex];
+
+  if(!module->needsUpdate && module->valid && (currentTime - module->lastUpdate) < 2){
+    return true;
   }
 
-  if(max > 0){
-    return (current * 100) / max;
-  } 
-  else{
-    return 0;
+  int newValue = executeCommand(BarSegments[moduleIndex].command);
+  if(newValue >= 0){
+    module->value = newValue;
+    module->lastUpdate = currentTime;
+    module->needsUpdate = false;
+    module->valid = true;
+    return true;
   }
+  return false;
+}
+
+void forceModuleUpdate(const char* moduleName){
+  for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
+    if(strcmp(BarSegments[i].name, moduleName) == 0){
+      wm.bar.modules[i].needsUpdate = true;
+      break;
+    }
+  }
+}
+
+void initBarModules(){
+  for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
+    wm.bar.modules[i].value = 0;
+    wm.bar.modules[i].lastUpdate = 0;
+    wm.bar.modules[i].needsUpdate = true;
+    wm.bar.modules[i].valid = false;
+  }
+  wm.bar.lastTimeUpdate = 0;
 }
 
 void drawText(Window win, const char *text, int alignment, bool highligted){
