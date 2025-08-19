@@ -72,7 +72,10 @@
 #define BAR_HIDE_KEY XK_M
 #define BAR_SHOW_KEY XK_N
 
-#define BAR_SEGMENTS_COUNT 3
+#define BAR_REFRESH_TIME 1 // in seconds
+
+
+#define BAR_SEGMENTS_COUNT 5
 
 typedef enum {
   SEGMENT_LEFT = 0,
@@ -104,9 +107,28 @@ static const BarModuleConfig BarSegments[BAR_SEGMENTS_COUNT] = {
   },
   {
     .name = "brightness",
-    .command = "pactl get-sink-volume @DEFAULT_SINK@ | grep -o '[0-9]*%' | head -1 | tr -d '%'",
+    .command = "brightnessctl get | awk '{print ($1*100)/$(brightnessctl max)}' | cut -d'.' -f1",
     .format = "BRT: %d%% |",
     .position = SEGMENT_RIGHT,
+    .enabled = true
+  },
+  {
+    .name = "battery",
+    .command = "cat /sys/class/power_supply/BAT0/capacity 2>/dev/null || echo 0",
+    .format = "BAT: %d%%",
+    .position = SEGMENT_LEFT,
+    .enabled = SHOW_BATTERY
+  },
+  {
+    .name = "time", // broken module
+    .command = "date +%H:%M:%S",
+    .position = SEGMENT_LEFT,
+    .enabled = true
+  },
+  {
+    .name = "desktop",
+    .format = "%s",
+    .position = SEGMENT_CENTER,
     .enabled = true
   }
 };

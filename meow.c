@@ -9,7 +9,6 @@
 #include "config.h"
 #include <sys/select.h>
 
-// new bug, spawning a window doesnt map on the screen until next event
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -50,12 +49,6 @@ typedef struct {
   bool inLayout;
   int32_t desktopIndex;
 } Client;
-
-typedef enum {
-  SEGMENT_LEFT = 0,
-  SEGMENT_CENTER,
-  SEGMENT_RIGHT
-} SegmentPosition;
 
 typedef struct {
   int value;
@@ -132,6 +125,7 @@ static Atom* findAtomPtrRange(Atom* ptr1, Atom* ptr2, Atom val);
 static bool desktopHasWindows(int desktop);
 static void initBar();
 static void updateBar();
+static void initBarModules();
 static void hideBar();
 static void unhideBar();
 
@@ -179,6 +173,9 @@ void initBar(){
     DefaultColormap(wm.display, DefaultScreen(wm.display)),
     BAR_FONT_COLOR,
     &wm.bar.color);
+
+  initBarModules();
+
   XSelectInput(wm.display, wm.bar.win, SubstructureRedirectMask | SubstructureNotifyMask);
   XMapWindow(wm.display, wm.bar.win);
   XRaiseWindow(wm.display, wm.bar.win);
@@ -841,7 +838,7 @@ bool updateBarModule(int moduleIndex){
   time_t currentTime = time(NULL);
   BarModuleData *module = &wm.bar.modules[moduleIndex];
 
-  if(!module->needsUpdate && module->valid && (currentTime - module->lastUpdate) < 2){
+  if(!module->needsUpdate && module->valid && (currentTime - module->lastUpdate) < BAR_REFRESH_TIME){
     return true;
   }
 
@@ -875,117 +872,162 @@ void initBarModules(){
   wm.bar.lastTimeUpdate = 0;
 }
 
-void drawText(Window win, const char *text, int alignment, bool highligted){
-  if(!text || strlen(text) == 0) return;
-
-  XWindowAttributes attrs;
-  XGetWindowAttributes(wm.display, win, &attrs);
-  XGlyphInfo extents;
-  XftTextExtentsUtf8(wm.display, wm.bar.font, (XftChar8*)text, strlen(text), &extents);
-
-  int x,y;
-  y = (attrs.height + wm.bar.font->ascent - wm.bar.font->descent) / 2;
-
-  switch(alignment){
-    case LEFT_ALIGN:
-      x = 10;
-      break;
-    case CENTER_ALIGN:
-      x = (attrs.width - extents.width) / 2;
-      break;
-    case RIGHT_ALIGN:
-      x = attrs.width - extents.width - 10;
-      break;
-    case RIGHT_ALIGN2:
-      x = attrs.width - extents.width - 150;
-      break;
-    case RIGHT_ALIGN3:
-      x = attrs.width - extents.width - 300; //hard coded values for now
-      break;
-    default:
-      x = 10;
-      break;
-  }
-
-  XftColor xftColor;
-  const char* colorName = highligted ? DESKTOP_HIGHLIGHT_COLOR : BAR_FONT_COLOR;
-  XftColorAllocName(wm.display, DefaultVisual(wm.display, DefaultScreen(wm.display)),
-                DefaultColormap(wm.display, DefaultScreen(wm.display)),
-                colorName,
-                &xftColor);
+void generateDesktopString(char *buffer, size_t bufferSize){
+  buffer[0] = '\0';
+  bool first = true;
   
-  XftDrawStringUtf8(wm.bar.draw, &xftColor, wm.bar.font, x, y, (XftChar8*)text, strlen(text));
-
-  XftColorFree(wm.display,
-               DefaultVisual(wm.display, DefaultScreen(wm.display)),
-               DefaultColormap(wm.display, DefaultScreen(wm.display)),
-               &xftColor);
+  for(int i = 0; i < DESKTOP_COUNT; i++){
+    if(desktopHasWindows(i)){
+      if(!first){
+        strncat(buffer, "-", bufferSize - strlen(buffer) - 1);
+      }
+      
+      char tmp[8];
+      if(i == wm.currentDesktop){
+        snprintf(tmp, sizeof(tmp), "[%d]", i);
+      }else{
+        snprintf(tmp, sizeof(tmp), "%d", i);
+      }
+      strncat(buffer, tmp, bufferSize - strlen(buffer) - 1);
+      first = false;
+    }
+  }
+  
+  if(strlen(buffer) == 0){
+    snprintf(buffer, bufferSize, "[%d]", wm.currentDesktop);
+  }
 }
 
-int getBatteryPercentage(){
-  FILE *fp = fopen("/sys/class/power_supply/BAT0/capacity", "r");
-  if(!fp) return -1;
-  int percentage;
-  if(fscanf(fp, "%d", &percentage) != 1){
-    fclose(fp);
-    return -1;
+int getTextWidth(const char *text){
+  if (!text || strlen(text) == 0) return 0;
+  
+  XGlyphInfo extents;
+  XftTextExtentsUtf8(wm.display, wm.bar.font, (XftChar8*)text, strlen(text), &extents);
+  return extents.xOff;
+}
+
+void drawTextAt(int x, int y, const char *text){
+  if(!text || strlen(text) == 0) return;
+  
+  XftDrawStringUtf8(wm.bar.draw, &wm.bar.color, wm.bar.font, x, y, (XftChar8*)text, strlen(text));
+}
+
+void drawBar(){
+  if(wm.bar.hidden) return;
+  
+  XClearWindow(wm.display, wm.bar.win);
+  
+  XWindowAttributes attrs;
+  XGetWindowAttributes(wm.display, wm.bar.win, &attrs);
+  
+  int baseline = (attrs.height + wm.bar.font->ascent - wm.bar.font->descent) / 2;
+  
+  char segmentTexts[BAR_SEGMENTS_COUNT][256];
+  int segmentWidths[BAR_SEGMENTS_COUNT];
+  bool segmentValid[BAR_SEGMENTS_COUNT];
+  
+  for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
+    segmentTexts[i][0] = '\0';
+    segmentWidths[i] = 0;
+    segmentValid[i] = false;
+    
+    if(!BarSegments[i].enabled) continue;
+    
+    if(strcmp(BarSegments[i].name, "desktop") == 0){
+      char desktopStr[128];
+      generateDesktopString(desktopStr, sizeof(desktopStr));
+      snprintf(segmentTexts[i], sizeof(segmentTexts[i]), BarSegments[i].format, desktopStr);
+      segmentValid[i] = true;
+    }
+    else if (wm.bar.modules[i].valid){
+      snprintf(segmentTexts[i], sizeof(segmentTexts[i]), BarSegments[i].format, wm.bar.modules[i].value);
+      segmentValid[i] = true;
+    }
+    
+    if(segmentValid[i]){
+      segmentWidths[i] = getTextWidth(segmentTexts[i]);
+    }
   }
-  fclose(fp);
-  return percentage;
+  
+  const int padding = 20; // temporary
+  const int segment_spacing = 15; // temporary
+  
+  int leftX = padding;
+  for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
+    if(segmentValid[i] && BarSegments[i].position == SEGMENT_LEFT){
+      drawTextAt(leftX, baseline, segmentTexts[i]);
+      leftX += segmentWidths[i] + segment_spacing;
+    }
+  }
+  
+  int totalRightWidth = 0;
+  int rightCount = 0;
+  
+  for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
+    if(segmentValid[i] && BarSegments[i].position == SEGMENT_RIGHT){
+      totalRightWidth += segmentWidths[i];
+      if(rightCount > 0) totalRightWidth += segment_spacing;
+      rightCount++;
+    }
+  }
+  
+  int rightX = attrs.width - padding - totalRightWidth;
+  for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
+    if(segmentValid[i] && BarSegments[i].position == SEGMENT_RIGHT){
+      drawTextAt(rightX, baseline, segmentTexts[i]);
+      rightX += segmentWidths[i] + segment_spacing;
+    }
+  }
+  
+  int totalCenterWidth = 0;
+  int centerCount = 0;
+  
+  for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
+    if(segmentValid[i] && BarSegments[i].position == SEGMENT_CENTER){
+      totalCenterWidth += segmentWidths[i];
+      if (centerCount > 0) totalCenterWidth += segment_spacing;
+      centerCount++;
+    }
+  }
+  
+  int leftBoundary = leftX;
+  int rightBoundary = attrs.width - padding - totalRightWidth - segment_spacing;
+  int availableCenterSpace = rightBoundary - leftBoundary;
+  
+  if(totalCenterWidth <= availableCenterSpace){
+    int centerStartX = leftBoundary + (availableCenterSpace - totalCenterWidth) / 2;
+    
+    for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
+      if(segmentValid[i] && BarSegments[i].position == SEGMENT_CENTER){
+        drawTextAt(centerStartX, baseline, segmentTexts[i]);
+        centerStartX += segmentWidths[i] + segment_spacing;
+      }
+    }
+  } 
+  else{
+    int fallbackX = leftBoundary + segment_spacing;
+    for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
+      if(segmentValid[i] && BarSegments[i].position == SEGMENT_CENTER){
+        if(fallbackX + segmentWidths[i] < rightBoundary){
+          drawTextAt(fallbackX, baseline, segmentTexts[i]);
+          fallbackX += segmentWidths[i] + segment_spacing;
+        }
+      }
+    }
+  }
+  
+  XFlush(wm.display);
 }
 
 void updateBar(){
   if(wm.bar.hidden) return;
 
-  XClearWindow(wm.display, wm.bar.win);
-
-  char desktopStr[256] = "";
-  bool first = true;
-
-  for(int i = 0; i < DESKTOP_COUNT; i++){
-    if(desktopHasWindows(i)){
-      if(!first){
-        strcat(desktopStr, "-");
-      }
-      char tmp[8];
-      if(i == wm.currentDesktop){
-        sprintf(tmp, "[%d]", i);
-      }
-      else{
-        sprintf(tmp, "%d", i);
-      }
-      strcat(desktopStr, tmp);
-      first = false;
+  for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
+    if(BarSegments[i].enabled && strcmp(BarSegments[i].name, "desktop") != 0){
+      updateBarModule(i);
     }
   }
-
-  drawText(wm.bar.win, desktopStr, CENTER_ALIGN, true); 
-
-  time_t t = time(NULL);
-  struct tm *tmInfo = localtime(&t);
-  char timeStr[64];
-  strftime(timeStr, sizeof(timeStr), "%H:%M:%S", tmInfo);
-
-  drawText(wm.bar.win, timeStr, LEFT_ALIGN, false);
-
-  if(SHOW_BATTERY){
-    int battery = getBatteryPercentage();
-    char batteryStr[32];
-    sprintf(batteryStr, "BATTERY: %d%%", battery);
-    drawText(wm.bar.win, batteryStr, RIGHT_ALIGN, false);
-  }
-
-  //int volume = getVolumePercentage(); temporary disabled, will fix tommorow and improve heavily
-  //char volumeStr[32];
-  //sprintf(volumeStr, "VOLUME: %d%% |", volume);
-  //drawText(wm.bar.win, volumeStr, RIGHT_ALIGN2, false);
-
-  //int brightness = getBrightnessPercentage();
-  //char brigthnessStr[32];
-  //sprintf(brigthnessStr, "BRIGHTNESS: %d%% |", brightness);
-  //drawText(wm.bar.win, brigthnessStr, RIGHT_ALIGN3, false); 
-
-  XFlush(wm.display);
+  drawBar();
 }
 
 bool desktopHasWindows(int desktop){
@@ -994,23 +1036,6 @@ bool desktopHasWindows(int desktop){
   }
   return false;
 }
-
-/*
-void updateBar(){
-  if(wm.bar.hidden) return;
-  XClearWindow(wm.display, wm.bar.win);
-
-  snprintf(wm.bar.barText, sizeof(wm.bar.barText),
-           "Desktop %d | Windows: %d | Layout: %s",
-           wm.currentDesktop,
-           wm.clients_count,
-           wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER ? "Tiled" : "Floating");
-
-  XftDrawStringUtf8(wm.bar.draw, &wm.bar.color, wm.bar.font, 10, wm.bar.font->ascent + 5, (XftChar8*)wm.bar.barText, strlen(wm.bar.barText));
-
-  XSync(wm.display, False);
-}
-*/
 
 void changeDesktop(int32_t desktopIndex){
   if(desktopIndex < 0 || desktopIndex >= DESKTOP_COUNT) return;
