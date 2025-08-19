@@ -9,6 +9,8 @@
 #include "config.h"
 #include <sys/select.h>
 
+// bug where windows dont get mapped until next event
+// still exists bcs of bad bar update, but its better now, TODO: fix later
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -127,6 +129,7 @@ static void initBar();
 static void updateBar();
 static void initBarModules();
 static void hideBar();
+static void forceModuleUpdate(const char* moduleName);
 static void unhideBar();
 
 static XWM wm;
@@ -535,21 +538,27 @@ void handleKeyPress(XEvent *ev){
   }
   else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, VOLUME_UP_KEY)){
     system(VOLUME_UP_CMD);
+    forceModuleUpdate("volume");
   }
   else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, VOLUME_DOWN_KEY)){
     system(VOLUME_DOWN_CMD);
+    forceModuleUpdate("volume");
   }
   else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, VOLUME_MUTE_KEY)){
     system(VOLUME_MUTE_CMD);
+    forceModuleUpdate("volume");
   }
   else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, BRIGHTNESS_UP_KEY)){
     system(BRIGHTNESS_UP_CMD);
+    forceModuleUpdate("brightness");
   }
   else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, BRIGHTNESS_DOWN_KEY)){
     system(BRIGHTNESS_DOWN_CMD);
+    forceModuleUpdate("brightness");
   }
   else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, BRIGHTNESS_MIN_KEY)){
     system(BRIGHTNESS_MIN_CMD);
+    forceModuleUpdate("brightness");
   }
   else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, GAP_INCREASE_KEY)){
     wm.windowGap = MIN(wm.windowGap + 2, 100);
@@ -939,6 +948,18 @@ void drawBar(){
       snprintf(segmentTexts[i], sizeof(segmentTexts[i]), BarSegments[i].format, desktopStr);
       segmentValid[i] = true;
     }
+    else if(strcmp(BarSegments[i].name, "time") == 0){
+      char timeStr[64];
+      FILE *fp = popen(BarSegments[i].command, "r");
+      if(fp){
+        if(fgets(timeStr, sizeof(timeStr), fp) != NULL){
+          timeStr[strcspn(timeStr, "\n")] = 0;
+          snprintf(segmentTexts[i], sizeof(segmentTexts[i]), BarSegments[i].format, timeStr);
+          segmentValid[i] = true;
+        }
+        pclose(fp);
+      }
+    }
     else if (wm.bar.modules[i].valid){
       snprintf(segmentTexts[i], sizeof(segmentTexts[i]), BarSegments[i].format, wm.bar.modules[i].value);
       segmentValid[i] = true;
@@ -949,14 +970,12 @@ void drawBar(){
     }
   }
   
-  const int padding = 20; // temporary
-  const int segment_spacing = 15; // temporary
   
-  int leftX = padding;
+  int leftX = BAR_MODULE_PADDING;
   for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
     if(segmentValid[i] && BarSegments[i].position == SEGMENT_LEFT){
       drawTextAt(leftX, baseline, segmentTexts[i]);
-      leftX += segmentWidths[i] + segment_spacing;
+      leftX += segmentWidths[i] + BAR_SEGMENTS_COUNT;
     }
   }
   
@@ -966,16 +985,16 @@ void drawBar(){
   for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
     if(segmentValid[i] && BarSegments[i].position == SEGMENT_RIGHT){
       totalRightWidth += segmentWidths[i];
-      if(rightCount > 0) totalRightWidth += segment_spacing;
+      if(rightCount > 0) totalRightWidth += BAR_SEGMENTS_COUNT;
       rightCount++;
     }
   }
   
-  int rightX = attrs.width - padding - totalRightWidth;
+  int rightX = attrs.width - BAR_MODULE_PADDING - totalRightWidth;
   for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
     if(segmentValid[i] && BarSegments[i].position == SEGMENT_RIGHT){
       drawTextAt(rightX, baseline, segmentTexts[i]);
-      rightX += segmentWidths[i] + segment_spacing;
+      rightX += segmentWidths[i] + BAR_SEGMENTS_COUNT;
     }
   }
   
@@ -985,13 +1004,13 @@ void drawBar(){
   for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
     if(segmentValid[i] && BarSegments[i].position == SEGMENT_CENTER){
       totalCenterWidth += segmentWidths[i];
-      if (centerCount > 0) totalCenterWidth += segment_spacing;
+      if (centerCount > 0) totalCenterWidth += BAR_SEGMENTS_COUNT;
       centerCount++;
     }
   }
   
   int leftBoundary = leftX;
-  int rightBoundary = attrs.width - padding - totalRightWidth - segment_spacing;
+  int rightBoundary = attrs.width - BAR_MODULE_PADDING - totalRightWidth - BAR_SEGMENTS_COUNT;
   int availableCenterSpace = rightBoundary - leftBoundary;
   
   if(totalCenterWidth <= availableCenterSpace){
@@ -1000,17 +1019,17 @@ void drawBar(){
     for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
       if(segmentValid[i] && BarSegments[i].position == SEGMENT_CENTER){
         drawTextAt(centerStartX, baseline, segmentTexts[i]);
-        centerStartX += segmentWidths[i] + segment_spacing;
+        centerStartX += segmentWidths[i] + BAR_SEGMENTS_COUNT;
       }
     }
   } 
   else{
-    int fallbackX = leftBoundary + segment_spacing;
+    int fallbackX = leftBoundary + BAR_SEGMENTS_COUNT;
     for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
       if(segmentValid[i] && BarSegments[i].position == SEGMENT_CENTER){
         if(fallbackX + segmentWidths[i] < rightBoundary){
           drawTextAt(fallbackX, baseline, segmentTexts[i]);
-          fallbackX += segmentWidths[i] + segment_spacing;
+          fallbackX += segmentWidths[i] + BAR_SEGMENTS_COUNT;
         }
       }
     }

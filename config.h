@@ -68,6 +68,8 @@
 #define BAR_PADDING_X 0
 #define BAR_PADDING_Y 0
 #define DESKTOP_HIGHLIGHT_COLOR "#f8f8f8"
+#define BAR_MODULE_PADDING 10 // padding from the sides of the bar
+#define BAR_SEGMENT_SPACING 20 // padding between modules
 
 #define BAR_HIDE_KEY XK_M
 #define BAR_SHOW_KEY XK_N
@@ -107,7 +109,7 @@ static const BarModuleConfig BarSegments[BAR_SEGMENTS_COUNT] = {
   },
   {
     .name = "brightness",
-    .command = "brightnessctl get | awk '{print ($1*100)/$(brightnessctl max)}' | cut -d'.' -f1",
+    .command = "brightnessctl get | awk -v max=$(brightnessctl max) '{print int($1*100/max)}'",
     .format = "BRT: %d%% |",
     .position = SEGMENT_RIGHT,
     .enabled = true
@@ -116,19 +118,20 @@ static const BarModuleConfig BarSegments[BAR_SEGMENTS_COUNT] = {
     .name = "battery",
     .command = "cat /sys/class/power_supply/BAT0/capacity 2>/dev/null || echo 0",
     .format = "BAT: %d%%",
-    .position = SEGMENT_LEFT,
+    .position = SEGMENT_RIGHT,
     .enabled = SHOW_BATTERY
   },
   {
     .name = "time", // broken module
     .command = "date +%H:%M:%S",
-    .position = SEGMENT_LEFT,
+    .format = "%s",
+    .position = SEGMENT_RIGHT,
     .enabled = true
   },
   {
     .name = "desktop",
     .format = "%s",
-    .position = SEGMENT_CENTER,
+    .position = SEGMENT_LEFT,
     .enabled = true
   }
 };
