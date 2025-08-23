@@ -67,9 +67,9 @@
 #define BAR_FONT_COLOR "#f8f8f8"
 #define BAR_PADDING_X 0
 #define BAR_PADDING_Y 0
-#define DESKTOP_HIGHLIGHT_COLOR "#f8f8f8"
+#define DESKTOP_HIGHLIGHT_COLOR "#f8f8f8" // ueless, keep it the same as BAR_FONT_COLOR if this will not be removed
 #define BAR_MODULE_PADDING 10 // padding from the sides of the bar
-#define BAR_SEGMENT_SPACING 20 // padding between modules
+#define BAR_SEGMENT_SPACING 30 // padding between modules
 
 #define BAR_HIDE_KEY XK_M
 #define BAR_SHOW_KEY XK_N
@@ -77,7 +77,6 @@
 #define BAR_REFRESH_TIME 1 // in seconds
 
 
-#define BAR_SEGMENTS_COUNT 5
 
 typedef enum {
   SEGMENT_LEFT = 0,
@@ -99,6 +98,8 @@ typedef struct {
 // .format = 
 // .enabled = 
 
+#define BAR_SEGMENTS_COUNT 4
+
 static const BarModuleConfig BarSegments[BAR_SEGMENTS_COUNT] = {
   {
     .name = "volume",
@@ -117,17 +118,17 @@ static const BarModuleConfig BarSegments[BAR_SEGMENTS_COUNT] = {
   {
     .name = "battery",
     .command = "cat /sys/class/power_supply/BAT0/capacity 2>/dev/null || echo 0",
-    .format = "BAT: %d%%",
+    .format = "BAT: %d%% |",
     .position = SEGMENT_RIGHT,
     .enabled = SHOW_BATTERY
   },
-  {
-    .name = "time", // broken module
+  /*{
+    .name = "time", //string too heavy and causes a small bug, will try to fix it later
     .command = "date +%H:%M:%S",
     .format = "%s",
-    .position = SEGMENT_RIGHT,
+    .position = SEGMENT_CENTER,
     .enabled = true
-  },
+  },*/
   {
     .name = "desktop",
     .format = "%s",

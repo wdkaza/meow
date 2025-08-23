@@ -262,62 +262,74 @@ void xwm_run(){
   int xfd = XConnectionNumber(wm.display);
   fd_set readFds;
   struct timeval timeout;
+  time_t lastBarUpdate = 0;
   bool barNeedsUpdate = true;
 
   while(wm.running){
     FD_ZERO(&readFds);
     FD_SET(xfd, &readFds);
     
-    timeout.tv_sec = 1;
-    timeout.tv_usec = 0;
-    
+    time_t currentTime = time(NULL);
+    time_t TimeSinceLastUpdate = currentTime - lastBarUpdate;
+
+    if(TimeSinceLastUpdate >= BAR_REFRESH_TIME){
+      timeout.tv_sec = 0;
+      timeout.tv_usec = 100000;
+      barNeedsUpdate = true;
+    }
+    else{
+      timeout.tv_sec = BAR_REFRESH_TIME - TimeSinceLastUpdate;
+      timeout.tv_usec = 0;
+    }
+
     int ready = select(xfd + 1, &readFds, NULL, NULL, &timeout);
     
-    if(ready > 0 && FD_ISSET(xfd, &readFds)){
-      while (XPending(wm.display)) {
-        XEvent ev;
-        XNextEvent(wm.display, &ev);
+    XFlush(wm.display);
 
-        switch(ev.type){
-          default:
-            break;
-          case MapRequest:
-            handleMapRequest(&ev);
-            barNeedsUpdate = true;
-            break;
-          case UnmapNotify:
-            handleUnmapNotify(&ev);
-            barNeedsUpdate = true;
-            break;
-          case DestroyNotify:
-            handleDestroyNotify(&ev);
-            barNeedsUpdate = true;
-            break;
-          case ConfigureNotify:
-            handleConfigureNotify(&ev);
-            break;
-          case ConfigureRequest:
-            handleConfigureRequst(&ev);
-            break;
-          case ButtonPress:
-            handleButtonPress(&ev);
-            break;
-          case MotionNotify:
-            handleMotionNotify(&ev);
-            break;
-          case KeyPress:
-            handleKeyPress(&ev);
-            barNeedsUpdate = true;
-            break;
-          case KeyRelease:
-            handleKeyRelease(&ev);
-            break;
-        }
+    while (XPending(wm.display)) {
+      XEvent ev;
+      XNextEvent(wm.display, &ev);
+
+      switch(ev.type){
+        default:
+          break;
+        case MapRequest:
+          handleMapRequest(&ev);
+          barNeedsUpdate = true;
+          break;
+        case UnmapNotify:
+          handleUnmapNotify(&ev);
+          barNeedsUpdate = true;
+          break;
+        case DestroyNotify:
+          handleDestroyNotify(&ev);
+          barNeedsUpdate = true;
+          break;
+        case ConfigureNotify:
+          handleConfigureNotify(&ev);
+          break;
+        case ConfigureRequest:
+          handleConfigureRequst(&ev);
+          break;
+        case ButtonPress:
+          handleButtonPress(&ev);
+          break;
+        case MotionNotify:
+          handleMotionNotify(&ev);
+          break;
+        case KeyPress:
+          handleKeyPress(&ev);
+          barNeedsUpdate = true;
+          break;
+        case KeyRelease:
+          handleKeyRelease(&ev);
+          break;
       }
     }
     if(barNeedsUpdate || ready == 0){ 
       updateBar();
       barNeedsUpdate = false;
+      lastBarUpdate = time(NULL);
     }
   }
 }
@@ -665,7 +677,6 @@ void handleMapRequest(XEvent *ev){
   XRaiseWindow(wm.display, frame);
   XSync(wm.display, false);
   setFocusToWindow(e->window);
-  updateBar();
 }
 
 void handleUnmapNotify(XEvent *ev){
@@ -752,7 +763,6 @@ void xwmWindowUnframe(Window w){
   wm.clients_count--;
 
   retileLayout();
-  updateBar();
 }
 
 
@@ -816,7 +826,6 @@ void unhideBar(){
   if(!wm.bar.hidden) return;
   XMapWindow(wm.display, wm.bar.win);
   wm.bar.hidden = false;
-
   updateBar();
   retileLayout();
 }
@@ -847,19 +856,22 @@ bool updateBarModule(int moduleIndex){
   time_t currentTime = time(NULL);
   BarModuleData *module = &wm.bar.modules[moduleIndex];
 
-  if(!module->needsUpdate && module->valid && (currentTime - module->lastUpdate) < BAR_REFRESH_TIME){
-    return true;
+  if(module->needsUpdate || !module->valid || (currentTime - module->lastUpdate) >= BAR_REFRESH_TIME){
+    int newValue = executeCommand(BarSegments[moduleIndex].command);
+    if(newValue >= 0){
+      module->value = newValue;
+      module->lastUpdate = currentTime;
+      module->needsUpdate = false;
+      module->valid = true;
+      return true;
+    }
+    else{
+      module->needsUpdate = false;
+      return module->valid;
+    }
   }
 
-  int newValue = executeCommand(BarSegments[moduleIndex].command);
-  if(newValue >= 0){
-    module->value = newValue;
-    module->lastUpdate = currentTime;
-    module->needsUpdate = false;
-    module->valid = true;
-    return true;
-  }
-  return false;
+  return module->valid;
 }
 
 void forceModuleUpdate(const char* moduleName){
@@ -1071,7 +1083,6 @@ void changeDesktop(int32_t desktopIndex){
     }
   }
   retileLayout();
-  updateBar();
   focusNextWindow();
 }
 
@@ -1207,7 +1218,6 @@ void retileLayout(){
     if(wm.focused_Window != None && clientWindowExists(wm.focused_Window)){
       updateWindowBorders(wm.focused_Window);
     }
-    updateBar();
     XSync(wm.display, false);
   } 
 }
