@@ -3,6 +3,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xft/Xft.h>
 #include <X11/Xatom.h>
+#include <X11/keysym.h>
 #include <X11/Xcursor/Xcursor.h>
 #include <X11/XKBlib.h>
 #include <X11/cursorfont.h>
@@ -29,7 +30,9 @@
 #define CLIENT_WINDOW_CAP 256
 
 
-
+// the code is a big mess overall is what i can say
+// its my first time making a window manager and i didnt know alot of things
+// im planning to start from scratch with the new knowledge, after finishing everything i want
 
 #define MIN(a, b) (((a)<(b))?(a):(b))
 #define MAX(a, b) ((a) > (b) ? (a) : b)
@@ -42,6 +45,7 @@ typedef enum{
 typedef struct {
   float x, y;
 } Vec2;
+
 
 typedef struct {
   Window win;
@@ -131,7 +135,6 @@ static void initBarModules();
 static void hideBar();
 static void forceModuleUpdate(const char* moduleName);
 static void unhideBar();
-
 static XWM wm;
 
 int xwm_error_handler(Display *dpy, XErrorEvent *e){
@@ -211,6 +214,36 @@ XWM xwm_init(){
   return wm;
 }
 
+void grabKeys(void){
+  KeyCode code;
+
+  XUngrabKey(wm.display, AnyKey, AnyModifier, wm.root);
+
+  for(unsigned int i = 0; i < sizeof(keys) / sizeof(*keys); i++){
+    code = XKeysymToKeycode(wm.display, keys[i].key);
+    if(!code) continue;
+
+    unsigned int modifiers[] = {
+      keys[i].modifier,
+      keys[i].modifier | LockMask,
+      keys[i].modifier | Mod2Mask,
+      keys[i].modifier | LockMask | Mod2Mask
+    };
+
+    for(unsigned int j = 0; j < sizeof(modifiers)/sizeof(*modifiers); j++){
+      XGrabKey(
+        wm.display,
+        code,
+        modifiers[j],
+        wm.root,
+        true,
+        GrabModeAsync,
+        GrabModeAsync
+      );
+    }
+  }
+}
+
 void xwm_run(){
   wm.running = true;
 
@@ -220,30 +253,12 @@ void xwm_run(){
   XSelectInput(wm.display, wm.root, SubstructureRedirectMask | SubstructureNotifyMask);
   XSync(wm.display, false);
 
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, KILL_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, ROFI_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, TERMINAL_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, FULLSCREEN_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync); 
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, CYCLE_WINDOWS_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, GAP_INCREASE_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, GAP_DECREAS_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, SET_WINDOW_LAYOUT_TILED_MASTER), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, SET_WINDOW_LAYOUT_FLOATING), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, WINDOW_ADD_TO_LAYOUT), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, WINDOW_LAYOUT_MOVE_UP), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, WINDOW_LAYOUT_MOVE_DOWN), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, BAR_HIDE_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, BAR_SHOW_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, VOLUME_MUTE_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, VOLUME_UP_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, VOLUME_DOWN_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, BRIGHTNESS_UP_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, BRIGHTNESS_DOWN_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
-  XGrabKey(wm.display, XKeysymToKeycode(wm.display, BRIGHTNESS_MIN_KEY), MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
-  for (int i = 0; i < 10; i++){
+  grabKeys();
+
+  for (int i = 0; i < 10; i++){ // TODO SITLL HARDECODED
     KeyCode keycode = XKeysymToKeycode(wm.display, XK_0 + i);
-    XGrabKey(wm.display, keycode, MASTER_KEY, wm.root, false, GrabModeAsync, GrabModeAsync);
-    XGrabKey(wm.display, keycode, MASTER_KEY | ShiftMask, wm.root, false, GrabModeAsync, GrabModeAsync);
+    XGrabKey(wm.display, keycode, MOD, wm.root, false, GrabModeAsync, GrabModeAsync);
+    XGrabKey(wm.display, keycode, MOD | ShiftMask, wm.root, false, GrabModeAsync, GrabModeAsync);
   }
   
   wm.clients_count = 0;
@@ -345,7 +360,7 @@ void handleButtonPress(XEvent *ev){
     setFocusToWindow(targetWindow);
   }
 
-  if((e->state & MASTER_KEY) && e->button == Button1){
+  if((e->state & MOD) && e->button == Button1){
     wm.cursor_start_pos = (Vec2){
       .x = (float)e->x_root,
       .y = (float)e->y_root
@@ -377,7 +392,7 @@ void handleMotionNotify(XEvent *ev){
   Window frame = getFrameWindow(e->window);
 
   Client *client = &wm.client_windows[getClientIndex(e->window)];
-  if((e->state & MASTER_KEY) && (e->state & Button1Mask)){
+  if((e->state & MOD) && (e->state & Button1Mask)){
     XMoveWindow(wm.display, frame, 
                 (int)(wm.cursor_start_frame_pos.x) + dx, 
                 (int)(wm.cursor_start_frame_pos.y) + dy
@@ -391,7 +406,7 @@ void handleMotionNotify(XEvent *ev){
       retileLayout();
     }
   }
-  else if((e->state & MASTER_KEY) && (e->state & Button3Mask)){
+  else if((e->state & MOD) && (e->state & Button3Mask)){
     /*
     Vec2 rdy = (Vec2){.x = wm.cursor_start_frame_size.x + MAX(dx, -wm.cursor_start_frame_size.x),
                       .y = wm.cursor_start_frame_size.y + MAX(dy, -wm.cursor_start_frame_size.y)};
@@ -495,104 +510,236 @@ void handleConfigureNotify(XEvent *ev){
   XMoveResizeWindow(wm.display, frame, e->x, e->y, e->width, e->height);
 }
 
-void handleKeyPress(XEvent *ev){
-  XKeyEvent *e = &ev->xkey;
+void spawn(Arg *arg){
+  if(fork() == 0){
+    setsid();
+    execvp(((char *const *)arg->v)[0], (char *const *)arg->v);
+    perror("execvp");
+    exit(1);
+  }
+}
+
+void kill(Arg *arg){
+  (void)arg;
 
   Window focusedWindow;
   int revert_to;
   XGetInputFocus(wm.display, &focusedWindow, &revert_to);
 
-  if(focusedWindow == wm.root && focusedWindow == None){
+  if(focusedWindow == wm.root || focusedWindow == None){
     focusedWindow = wm.focused_Window;
   }
 
-  if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, KILL_KEY)){
-    if(clientWindowExists(focusedWindow) && focusedWindow != wm.root){
-      int32_t closingIndex = getClientIndex(focusedWindow);
+  if(clientWindowExists(focusedWindow) && focusedWindow != wm.root){
+    int32_t closingIndex = getClientIndex(focusedWindow);
     
-      Atom* protocols;
-      int32_t num_protocols;
-      if(XGetWMProtocols(wm.display, focusedWindow, &protocols, &num_protocols) 
-      && findAtomPtrRange(protocols, protocols + num_protocols, wm.ATOM_WM_DELETE_WINDOW) != protocols + num_protocols){
-        sendClientMessage(focusedWindow, wm.ATOM_WM_DELETE_WINDOW);
-        XFree(protocols);
+    Atom* protocols;
+    int32_t num_protocols;
+    if(XGetWMProtocols(wm.display, focusedWindow, &protocols, &num_protocols) 
+    && findAtomPtrRange(protocols, protocols + num_protocols, wm.ATOM_WM_DELETE_WINDOW) != protocols + num_protocols){
+      sendClientMessage(focusedWindow, wm.ATOM_WM_DELETE_WINDOW);
+      XFree(protocols);
+    }
+    else{
+      XKillClient(wm.display, focusedWindow);
+    }
+    if(wm.clients_count > 1){
+      int32_t nextIndex = (closingIndex + 1) % wm.clients_count;
+      if(nextIndex == closingIndex){
+        nextIndex = (closingIndex - 1 + wm.clients_count) % wm.clients_count;
       }
-      else{
-        XKillClient(wm.display, focusedWindow);
+      int startIndex = nextIndex;
+      while(wm.client_windows[nextIndex].desktopIndex != wm.currentDesktop){
+        nextIndex = (nextIndex + 1) % wm.clients_count;
+        if(nextIndex == startIndex) break;
       }
-      if(wm.clients_count > 1){
-        int32_t nextIndex = (closingIndex + 1) % wm.clients_count;
-        if(nextIndex == closingIndex){
-          nextIndex = (closingIndex - 1 + wm.clients_count) % wm.clients_count;
-        }
-        int startIndex = nextIndex;
-        while(wm.client_windows[nextIndex].desktopIndex != wm.currentDesktop){
-          nextIndex = (nextIndex + 1) % wm.clients_count;
-          if(nextIndex == startIndex) break;
-        }
-        if(wm.client_windows[nextIndex].desktopIndex == wm.currentDesktop){
-          setFocusToWindow(wm.client_windows[nextIndex].win);
-        }
-        else{
-          XSetInputFocus(wm.display, wm.root, RevertToParent, CurrentTime);
-        }
+      if(wm.client_windows[nextIndex].desktopIndex == wm.currentDesktop){
+        setFocusToWindow(wm.client_windows[nextIndex].win);
       }
       else{
         XSetInputFocus(wm.display, wm.root, RevertToParent, CurrentTime);
       }
     }
+    else{
+      XSetInputFocus(wm.display, wm.root, RevertToParent, CurrentTime);
+    }
   }
-  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, TERMINAL_KEY)){
-    system(TERMINAL_CMD);
+}
+
+void handleKeyPress(XEvent *ev){
+  XKeyEvent *e = &ev->xkey;
+  KeySym keysym = XkbKeycodeToKeysym(wm.display, e->keycode, 0, 0);
+
+  for(unsigned int i = 0; i < sizeof(keys)/sizeof(*keys); i++){
+    if(keysym == keys[i].key && (e->state & keys[i].modifier) == keys[i].modifier){
+      if(keys[i].func){
+        keys[i].func(&keys[i].arg);
+      }
+      return;
+    }
   }
-  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, ROFI_KEY)){
-    system(ROFI_CMD);
+}
+
+Window getFocusedWindow(void){
+  Window focused;
+  int revert;
+  XGetInputFocus(wm.display, &focused, &revert);
+  return focused;
+}
+
+void increaseVolume(Arg *arg){
+  (void)arg;
+
+  system(VOLUME_UP_CMD);
+  forceModuleUpdate("volume");
+}
+
+void decreaseVolume(Arg *arg){
+  (void)arg;
+  
+  system(VOLUME_DOWN_CMD);
+  forceModuleUpdate("volume");
+}
+
+void muteVolume(Arg *arg){
+  (void)arg;
+
+  system(VOLUME_MUTE_CMD);
+  forceModuleUpdate("volume");
+}
+
+void increaseBrightness(Arg *arg){
+  (void)arg;
+
+  system(BRIGHTNESS_UP_CMD);
+  forceModuleUpdate("brightness");
+}
+
+void decreaseBrightness(Arg *arg){
+  (void)arg;
+
+  system(BRIGHTNESS_DOWN_CMD);
+  forceModuleUpdate("brightness");
+}
+
+void minBrightness(Arg *arg){
+  (void)arg;
+
+  system(BRIGHTNESS_MIN_CMD);
+  forceModuleUpdate("brightness");
+}
+
+void increaseGapSize(Arg *arg){
+  (void)arg;
+
+  wm.windowGap = MIN(wm.windowGap + 2, 100);
+  retileLayout();
+}
+
+void decreaseGapSize(Arg *arg){
+  (void)arg;
+
+  wm.windowGap = MAX((int)wm.windowGap - 2, 15);
+  retileLayout();
+}
+
+void setWindowLayoutTiled(Arg *arg){
+  (void)arg;
+
+  wm.currentLayout = WINDOW_LAYOUT_TILED_MASTER;
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+    wm.client_windows[i].inLayout = true;
+    if(wm.client_windows[i].fullscreen){
+    unsetFullscreen(wm.client_windows[i].frame);
+    }
   }
-  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, VOLUME_UP_KEY)){
-    system(VOLUME_UP_CMD);
-    forceModuleUpdate("volume");
-  }
-  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, VOLUME_DOWN_KEY)){
-    system(VOLUME_DOWN_CMD);
-    forceModuleUpdate("volume");
-  }
-  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, VOLUME_MUTE_KEY)){
-    system(VOLUME_MUTE_CMD);
-    forceModuleUpdate("volume");
-  }
-  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, BRIGHTNESS_UP_KEY)){
-    system(BRIGHTNESS_UP_CMD);
-    forceModuleUpdate("brightness");
-  }
-  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, BRIGHTNESS_DOWN_KEY)){
-    system(BRIGHTNESS_DOWN_CMD);
-    forceModuleUpdate("brightness");
-  }
-  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, BRIGHTNESS_MIN_KEY)){
-    system(BRIGHTNESS_MIN_CMD);
-    forceModuleUpdate("brightness");
-  }
-  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, GAP_INCREASE_KEY)){
-    wm.windowGap = MIN(wm.windowGap + 2, 100);
+  retileLayout();
+}
+
+void setWindowLayoutFloating(Arg *arg){
+  (void)arg;
+
+  wm.currentLayout = WINDOW_LAYOUT_FLOATING; 
+}
+
+void addWindowToLayout(Arg *arg){
+  (void)arg;
+
+  Window focusedWindow = getFocusedWindow();
+
+  if(clientWindowExists(focusedWindow)){
+    wm.client_windows[getClientIndex(focusedWindow)].inLayout = true;
     retileLayout();
   }
-  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, GAP_DECREAS_KEY)){
-    wm.windowGap = MAX((int)wm.windowGap - 2, 15);
-    retileLayout();
+}
+
+void moveWindowUp(Arg *arg){
+  (void)arg;
+
+  Window focusedWindow = getFocusedWindow();
+
+  moveClientUpLayout(&wm.client_windows[getClientIndex(focusedWindow)]);
+}
+
+void moveWindowDown(Arg *arg){
+  (void)arg;
+
+  Window focusedWindow = getFocusedWindow();
+
+  moveClientDownLayout(&wm.client_windows[getClientIndex(focusedWindow)]);
+}
+
+void fullscreen(Arg *arg){
+  (void)arg;
+
+  Window focusedWindow = getFocusedWindow();
+
+  uint32_t clientIndex = getClientIndex(focusedWindow);
+  if(!wm.client_windows[clientIndex].fullscreen){
+    setFullscreen(focusedWindow);
   }
-  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, SET_WINDOW_LAYOUT_TILED_MASTER)){
-    wm.currentLayout = WINDOW_LAYOUT_TILED_MASTER;
-    for(uint32_t i = 0; i < wm.clients_count; i++){
-      wm.client_windows[i].inLayout = true;
-      if(wm.client_windows[i].fullscreen){
-        unsetFullscreen(wm.client_windows[i].frame);
+  else{
+    unsetFullscreen(focusedWindow);
+  }
+}
+
+void enableBar(Arg *arg){
+  (void)arg;
+
+  unhideBar();
+}
+
+void disableBar(Arg *arg){
+  (void)arg;
+
+  hideBar();
+}
+
+void cycleWindows(Arg *arg){
+  (void)arg;
+
+  Window focusedWindow = getFocusedWindow();
+
+  int32_t currentIndex = -1;
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+  if((wm.client_windows[i].win == focusedWindow || wm.client_windows[i].frame == focusedWindow) && wm.client_windows[i].desktopIndex == wm.currentDesktop){
+    currentIndex = i;
+    break;
+    }
+  }
+  if(currentIndex != -1){
+    for(uint32_t i = 1; i < wm.clients_count; i++){
+      uint32_t nextIndex = (currentIndex + i) % wm.clients_count;
+      if(wm.client_windows[nextIndex].desktopIndex == wm.currentDesktop){
+        setFocusToWindow(wm.client_windows[nextIndex].win);
+        break;
       }
     }
-   retileLayout();
   }
-  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, SET_WINDOW_LAYOUT_FLOATING)){
-    wm.currentLayout = WINDOW_LAYOUT_FLOATING;
-  }
+}
+
+void handleKeyPress(XEvent *ev){
+
   else if((e->state & MASTER_KEY) && (e->state & ShiftMask) && XK_0 <= XkbKeycodeToKeysym(wm.display, e->keycode, 0, 0) && XkbKeycodeToKeysym(wm.display, e->keycode, 0, 0) <= XK_9){
     int newDesktop = XkbKeycodeToKeysym(wm.display, e->keycode, 0, 0) - XK_0;
     if(clientWindowExists(focusedWindow) && newDesktop < DESKTOP_COUNT){
@@ -603,51 +750,6 @@ void handleKeyPress(XEvent *ev){
     int newDesktop = XkbKeycodeToKeysym(wm.display, e->keycode, 0, 0) - XK_0;
     if(newDesktop != wm.currentDesktop && newDesktop < DESKTOP_COUNT){
       changeDesktop(newDesktop);
-    }
-  }
-  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, WINDOW_ADD_TO_LAYOUT)){
-    if(clientWindowExists(focusedWindow)){
-      wm.client_windows[getClientIndex(focusedWindow)].inLayout = true;
-      retileLayout();
-    }
-  }
-  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, WINDOW_LAYOUT_MOVE_UP)){
-    moveClientUpLayout(&wm.client_windows[getClientIndex(focusedWindow)]);
-  }
-  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, WINDOW_LAYOUT_MOVE_DOWN)){
-    moveClientDownLayout(&wm.client_windows[getClientIndex(focusedWindow)]);
-  }
-  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, FULLSCREEN_KEY)){
-    uint32_t clientIndex = getClientIndex(focusedWindow);
-    if(!wm.client_windows[clientIndex].fullscreen){
-      setFullscreen(focusedWindow);
-    }
-    else{
-      unsetFullscreen(focusedWindow);
-    }
-  }
-  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, BAR_HIDE_KEY)){
-    hideBar();
-  }
-  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, BAR_SHOW_KEY)){
-    unhideBar();
-  }
-  else if(e->state & MASTER_KEY && e->keycode == XKeysymToKeycode(wm.display, CYCLE_WINDOWS_KEY)){
-    int32_t currentIndex = -1;
-    for(uint32_t i = 0; i < wm.clients_count; i++){
-      if((wm.client_windows[i].win == focusedWindow || wm.client_windows[i].frame == focusedWindow) && wm.client_windows[i].desktopIndex == wm.currentDesktop){
-        currentIndex = i;
-        break;
-      }
-    }
-    if(currentIndex != -1){
-      for(uint32_t i = 1; i < wm.clients_count; i++){
-        uint32_t nextIndex = (currentIndex + i) % wm.clients_count;
-        if(wm.client_windows[nextIndex].desktopIndex == wm.currentDesktop){
-          setFocusToWindow(wm.client_windows[nextIndex].win);
-          break;
-        }
-      }
     }
   }
 }
@@ -790,7 +892,12 @@ void setFullscreen(Window w){
   int screenWidth = DisplayWidth(wm.display, screen);
   int screenHeight = DisplayHeight(wm.display, screen);
   // BUG HERE (full screen right now only works with gaps TODO: make actual fullscreen toggable) 
-  XMoveResizeWindow(wm.display, frame, wm.windowGap - BORDER_WIDTH, wm.windowGap - BORDER_WIDTH, screenWidth - wm.windowGap * 2, screenHeight - wm.windowGap * 2);
+  XMoveResizeWindow(wm.display,
+                    frame,
+                    wm.windowGap - BORDER_WIDTH,
+                    wm.windowGap - BORDER_WIDTH,
+                    screenWidth - wm.windowGap * 2,
+                    screenHeight - wm.windowGap * 2);
   XResizeWindow(wm.display, w, screenWidth - wm.windowGap * 2, screenHeight - wm.windowGap * 2);
   hideBar();
 }
@@ -960,13 +1067,13 @@ void drawBar(){
       snprintf(segmentTexts[i], sizeof(segmentTexts[i]), BarSegments[i].format, desktopStr);
       segmentValid[i] = true;
     }
-    else if(strcmp(BarSegments[i].name, "time") == 0){
-      char timeStr[64];
+    else if(strcmp(BarSegments[i].name, "string") == 0){
+      char stringStr[64];
       FILE *fp = popen(BarSegments[i].command, "r");
       if(fp){
-        if(fgets(timeStr, sizeof(timeStr), fp) != NULL){
-          timeStr[strcspn(timeStr, "\n")] = 0;
-          snprintf(segmentTexts[i], sizeof(segmentTexts[i]), BarSegments[i].format, timeStr);
+        if(fgets(stringStr, sizeof(stringStr), fp) != NULL){
+          stringStr[strcspn(stringStr, "\n")] = 0;
+          snprintf(segmentTexts[i], sizeof(segmentTexts[i]), BarSegments[i].format, stringStr);
           segmentValid[i] = true;
         }
         pclose(fp);
@@ -1275,8 +1382,8 @@ void xwmWindowFrame(Window win, bool createdBeforeWindowManager){
   wm.client_windows[wm.clients_count].desktopIndex = wm.currentDesktop; 
   wm.clients_count++;
 
-  XGrabButton(wm.display, Button1, MASTER_KEY, win, false, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, None);
-  XGrabButton(wm.display, Button3, MASTER_KEY, win, false, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, None);
+  XGrabButton(wm.display, Button1, MOD, win, false, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, None);
+  XGrabButton(wm.display, Button3, MOD, win, false, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, None);
   retileLayout();
 }
 

@@ -4,6 +4,7 @@ Minimal, no desktop bloat, no unnecessary features. Just clean.<br><br><br>
 
 ![preview](2025-08-06-214317_1920x1080_scrot.png)<br><br>
 ![preview2](2025-08-12-014816_1920x1080_scrot.png)<br>
+![preview3](2025-08-13-164111_1920x1080_scrot.png)<br>
 <br><br><br>
 ## Features<br>
 So far meow has support for:<br>
@@ -11,11 +12,12 @@ So far meow has support for:<br>
 - [x] Tiling layouts(just one currently)<br>
 - [x] Window borders<br>
 - [x] Gaps between windows in a layout<br>
-- [ ] Built in bar(in progress)<br>
+- [x] Better config(small bug fixes left)
+- [ ] Built in bar(in progress, maybe ~50% done)<br>
 - [ ] Hover to select windows<br>
 - [ ] Multiple monitors<br><br><br><br>
   
-  
+sadly EMWH suppot will be added in a future version where i will rewrite everything from scratch in a better way overall<br>
 
 ## Instalation
 <br>

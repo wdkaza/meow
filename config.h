@@ -1,9 +1,12 @@
 #pragma once
 #include <stdint.h>
+#include <X11/keysym.h>
+#include <X11/Xlib.h>
 
 // multi monitors not supported since i have no wqay to debug them
+// i realised too late you could probably run multiple xephyr sesions to debug them
 
-// default keybinds suck TODO make them better later
+//// default keybinds suck TODO make them better later
 
 #define MONITOR_WIDTH 1920
 #define MONITOR_HEIGHT 1080
@@ -20,7 +23,6 @@
 #define BRIGHTNESS_DOWN_CMD "brightnessctl set 5%-"
 #define BRIGHTNESS_MIN_CMD "brightnessctl set 1%"
 
-#define MASTER_KEY Mod1Mask // alt by default
 
 #define KILL_KEY XK_Q // kill
 #define ROFI_KEY XK_slash // "/"
@@ -49,8 +51,6 @@
 #define WINDOW_LAYOUT_MOVE_DOWN XK_Up // maybe will fix later but for now this is MOVEUP
 
 #define DESKTOP_COUNT 10
-#define DESKTOP_CYCLE_UP XK_Z
-#define DESKTOP_CYCLE_DOWN XK_X
 
 #define BORDER_WIDTH 4
 #define BORDER_FOCUSED_WIDTH 4 // currently a bit broken visually(layout will look ugly)
@@ -58,7 +58,136 @@
 #define BORDER_FOCUSED_COLOR 0xf2fcb1
 #define BG_COLOR 0x000000
 
-#define SHOW_BATTERY 1
+
+
+
+
+#define BAR_HIDE_KEY XK_M
+#define BAR_SHOW_KEY XK_N
+
+#define BAR_REFRESH_TIME 1 // in seconds
+
+// new config 
+
+// ignore
+typedef union{
+  int i;
+  const void *v;
+} Arg;
+// ignore
+void spawn(Arg *arg);
+void kill(Arg *arg);
+void increaseVolume(Arg *arg);
+void decreaseVolume(Arg *arg);
+void muteVolume(Arg *arg);
+void addWindowToLayout(Arg *arg);
+void increaseBrightness(Arg *arg);
+void decreaseBrigthness(Arg *arg);
+void minBrigthness(Arg *arg);
+void decreaseGapSize(Arg *arg);
+void increaseGapSize(Arg *arg);
+void setWindowLayoutTiled(Arg *arg);
+void setWindowLayoutFloating(Arg *arg);
+void moveWindowUp(Arg *arg);
+void moveWindowDown(Arg *arg);
+void fullscreen(Arg *arg);
+void disableBar(Arg *arg);
+void enableBar(Arg *arg);
+void cycleWindows(Arg *arg);
+// ignore
+typedef struct KeyEvent {
+  unsigned int modifier;
+  KeySym key;
+  void(*func)(Arg *a);
+  Arg arg;
+} KeyEvent;
+
+
+// all actions you can find below
+//
+// spawn,        (value required), (pretty much executes commands so can be used for them too like adjusting volume)
+// kill,
+// addToLayout
+// moveWindowUp  (inLayout)
+// moveWindowDown(inLayout)
+// disableBar     
+// enableBar     
+// increaseVolume
+// decreaseVolume
+// muteVolume
+// increaseBrightness
+// decreaseBrigthness
+// minBrigthness (1%)
+// increaseGapSize
+// decreaseGapSize
+// cycleWindows
+// fullscreen
+// setWindowLayoutTiled
+//
+
+#define MOD Mod1Mask // alt by default
+
+// ===define values HERE ===
+// keepsame |  [name]   |   [args]
+static char *terminal[] = {"kitty", NULL};
+static char *launcher[] = {"rofi", "-show", NULL};
+// ===define values HERE ===
+
+
+// [MOD-KEY, KEY, ACTION, VALUE(if none set to 0)]
+// [MOD-KEY|ShiftMask, ...]   for mod+shift keybinds
+// [MOD-KEY|ControlMask, ...] for mod+control keybinds
+
+struct KeyEvent keys[] = {
+  // switching desktops currently hardcoded for MOD + 1-2.... (TODO)
+  //
+  // {MOD, XK_F3,  spawn,              {.v = (const char *[]){"pactl", "set-sink-volume", "@DEFAULT_SINK", "+5%", NULL}}}
+  // split args by coma and double quote them "arg"
+  // ^^^ example of custom command ^^^
+  // keeping it simple by using increaseVolume/decreaseVolume/muteVolume, etc
+  {MOD, XK_Return, spawn,                   {.v = terminal}},
+  {MOD, XK_Q,      kill,                    {0}},
+  {MOD, XK_space,  addWindowToLayout,       {0}},
+  {MOD, XK_Up,     moveWindowUp,            {0}},
+  {MOD, XK_Down,   moveWindowDown,          {0}},
+  {MOD, XK_M,      enableBar,               {0}},
+  {MOD, XK_N,      disableBar,              {0}},
+  {MOD, XK_F3,     increaseVolume,          {0}},
+  {MOD, XK_F2,     decreaseVolume,          {0}},
+  {MOD, XK_F1,     muteVolume,              {0}},
+  {MOD, XK_F6,     increaseBrightness,      {0}},
+  {MOD, XK_F5,     decreaseBrigthness,      {0}},
+  {MOD, XK_F7,     minBrigthness,           {0}},
+  {MOD, XK_Y,      increaseGapSize,         {0}},
+  {MOD, XK_U,      decreaseGapSize,         {0}},
+  {MOD, XK_Tab,    cycleWindows,            {0}},
+  {MOD, XK_F,      fullscreen,              {0}},
+  {MOD, XK_R,      setWindowLayoutTiled,    {0}},
+  {MOD, XK_T,      setWindowLayoutFloating, {0}},
+
+
+};
+
+// ignore
+typedef enum {
+  SEGMENT_LEFT = 0,
+  SEGMENT_CENTER,
+  SEGMENT_RIGHT
+} SegmentPosition;
+// ignore
+typedef struct {
+  char name[32];
+  char command[256];
+  char format[64];
+  SegmentPosition position;
+  bool enabled;
+} BarModuleConfig;
+// ignore ^^^^^
+
+
+
+
+
 
 #define BAR_HEIGHT 24
 #define BAR_COLOR 0x282a36
@@ -71,34 +200,13 @@
 #define BAR_MODULE_PADDING 10 // padding from the sides of the bar
 #define BAR_SEGMENT_SPACING 30 // padding between modules
 
-#define BAR_HIDE_KEY XK_M
-#define BAR_SHOW_KEY XK_N
-
-#define BAR_REFRESH_TIME 1 // in seconds
-
-
-
-typedef enum {
-  SEGMENT_LEFT = 0,
-  SEGMENT_CENTER,
-  SEGMENT_RIGHT
-} SegmentPosition;
-
-typedef struct {
-  char name[32];
-  char command[256];
-  char format[64];
-  SegmentPosition position;
-  bool enabled;
-} BarModuleConfig;
-
 // format:
 // .name = 
 // .command = 
 // .format = 
-// .enabled = 
+// .enabled = (isnt enabled useless?? whatever) 
 
-#define BAR_SEGMENTS_COUNT 4
+#define BAR_SEGMENTS_COUNT 5
 
 static const BarModuleConfig BarSegments[BAR_SEGMENTS_COUNT] = {
   {
@@ -118,17 +226,17 @@ static const BarModuleConfig BarSegments[BAR_SEGMENTS_COUNT] = {
   {
     .name = "battery",
     .command = "cat /sys/class/power_supply/BAT0/capacity 2>/dev/null || echo 0",
-    .format = "BAT: %d%% |",
+    .format = "BAT: %d%%",
     .position = SEGMENT_RIGHT,
-    .enabled = SHOW_BATTERY
+    .enabled = true
   },
-  /*{
-    .name = "time", //string too heavy and causes a small bug, will try to fix it later
+  {
+    .name = "string", //string too heavy and causes a small bug, will try to fix it later
     .command = "date +%H:%M:%S",
     .format = "%s",
     .position = SEGMENT_CENTER,
-    .enabled = true
-  },*/
+    .enabled = false
+  },
   {
     .name = "desktop",
     .format = "%s",
