@@ -2,7 +2,7 @@
 A very lightweight and minimal X window manager made in C, insipired by i3, dwm and ragnarWM.<br>
 Minimal, no desktop bloat, no unnecessary features. Just clean.<br><br><br>
 
-![preview](2025-08-06-214317_1920x1080_scrot.png)<br><br>
+![preview](2025-08-06-214317_1920x1080_scrot.png)<br>
 ![preview2](2025-08-12-014816_1920x1080_scrot.png)<br>
 ![preview3](2025-08-13-164111_1920x1080_scrot.png)<br>
 <br><br><br>
