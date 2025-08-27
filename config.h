@@ -1,4 +1,5 @@
 #pragma once
+#include <X11/X.h>
 #include <stdint.h>
 #include <X11/keysym.h>
 #include <X11/Xlib.h>
@@ -82,8 +83,8 @@ void decreaseVolume(Arg *arg);
 void muteVolume(Arg *arg);
 void addWindowToLayout(Arg *arg);
 void increaseBrightness(Arg *arg);
-void decreaseBrigthness(Arg *arg);
-void minBrigthness(Arg *arg);
+void decreaseBrightness(Arg *arg);
+void minBrightness(Arg *arg);
 void decreaseGapSize(Arg *arg);
 void increaseGapSize(Arg *arg);
 void setWindowLayoutTiled(Arg *arg);
@@ -94,6 +95,8 @@ void fullscreen(Arg *arg);
 void disableBar(Arg *arg);
 void enableBar(Arg *arg);
 void cycleWindows(Arg *arg);
+void switchDesktop(Arg *arg);
+void transferWindowToDesktop(Arg *arg);
 // ignore
 typedef struct KeyEvent {
   unsigned int modifier;
@@ -139,13 +142,13 @@ static char *launcher[] = {"rofi", "-show", NULL};
 // [MOD-KEY|ControlMask, ...] for mod+control keybinds
 
 struct KeyEvent keys[] = {
-  // switching desktops currently hardcoded for MOD + 1-2.... (TODO)
   //
   // {MOD, XK_F3,  spawn,              {.v = (const char *[]){"pactl", "set-sink-volume", "@DEFAULT_SINK", "+5%", NULL}}}
   // split args by coma and double quote them "arg"
   // ^^^ example of custom command ^^^
   // keeping it simple by using increaseVolume/decreaseVolume/muteVolume, etc
   {MOD, XK_Return, spawn,                   {.v = terminal}},
+  {MOD, XK_slash,  spawn,                   {.v = launcher}},
   {MOD, XK_Q,      kill,                    {0}},
   {MOD, XK_space,  addWindowToLayout,       {0}},
   {MOD, XK_Up,     moveWindowUp,            {0}},
@@ -156,8 +159,8 @@ struct KeyEvent keys[] = {
   {MOD, XK_F2,     decreaseVolume,          {0}},
   {MOD, XK_F1,     muteVolume,              {0}},
   {MOD, XK_F6,     increaseBrightness,      {0}},
-  {MOD, XK_F5,     decreaseBrigthness,      {0}},
-  {MOD, XK_F7,     minBrigthness,           {0}},
+  {MOD, XK_F5,     decreaseBrightness,      {0}},
+  {MOD, XK_F7,     minBrightness,           {0}},
   {MOD, XK_Y,      increaseGapSize,         {0}},
   {MOD, XK_U,      decreaseGapSize,         {0}},
   {MOD, XK_Tab,    cycleWindows,            {0}},
@@ -165,7 +168,26 @@ struct KeyEvent keys[] = {
   {MOD, XK_R,      setWindowLayoutTiled,    {0}},
   {MOD, XK_T,      setWindowLayoutFloating, {0}},
 
+  // desktop related keybindings
+  {MOD, XK_1,      switchDesktop,           {.i = 1}},
+  {MOD, XK_2,      switchDesktop,           {.i = 2}},
+  {MOD, XK_3,      switchDesktop,           {.i = 3}},
+  {MOD, XK_4,      switchDesktop,           {.i = 4}},
+  {MOD, XK_5,      switchDesktop,           {.i = 5}},
+  {MOD, XK_6,      switchDesktop,           {.i = 6}},
+  {MOD, XK_7,      switchDesktop,           {.i = 7}},
+  {MOD, XK_8,      switchDesktop,           {.i = 8}},
+  {MOD, XK_9,      switchDesktop,           {.i = 9}},
 
+  {MOD|ShiftMask, XK_1, transferWindowToDesktop, {.i = 1}},
+  {MOD|ShiftMask, XK_2, transferWindowToDesktop, {.i = 2}},
+  {MOD|ShiftMask, XK_3, transferWindowToDesktop, {.i = 3}},
+  {MOD|ShiftMask, XK_4, transferWindowToDesktop, {.i = 4}},
+  {MOD|ShiftMask, XK_5, transferWindowToDesktop, {.i = 5}},
+  {MOD|ShiftMask, XK_6, transferWindowToDesktop, {.i = 6}},
+  {MOD|ShiftMask, XK_7, transferWindowToDesktop, {.i = 7}},
+  {MOD|ShiftMask, XK_8, transferWindowToDesktop, {.i = 8}},
+  {MOD|ShiftMask, XK_9, transferWindowToDesktop, {.i = 9}},
 };
 
 // ignore

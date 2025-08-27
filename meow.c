@@ -135,6 +135,7 @@ static void initBarModules();
 static void hideBar();
 static void forceModuleUpdate(const char* moduleName);
 static void unhideBar();
+
 static XWM wm;
 
 int xwm_error_handler(Display *dpy, XErrorEvent *e){
@@ -227,6 +228,7 @@ void grabKeys(void){
       keys[i].modifier,
       keys[i].modifier | LockMask,
       keys[i].modifier | Mod2Mask,
+      keys[i].modifier | ShiftMask,
       keys[i].modifier | LockMask | Mod2Mask
     };
 
@@ -255,12 +257,6 @@ void xwm_run(){
 
   grabKeys();
 
-  for (int i = 0; i < 10; i++){ // TODO SITLL HARDECODED
-    KeyCode keycode = XKeysymToKeycode(wm.display, XK_0 + i);
-    XGrabKey(wm.display, keycode, MOD, wm.root, false, GrabModeAsync, GrabModeAsync);
-    XGrabKey(wm.display, keycode, MOD | ShiftMask, wm.root, false, GrabModeAsync, GrabModeAsync);
-  }
-  
   wm.clients_count = 0;
   wm.cursor_start_frame_size = (Vec2){ .x = 0.0f, .y = 0.0f};
   wm.cursor_start_frame_pos = (Vec2){ .x = 0.0f, .y = 0.0f};
@@ -510,6 +506,8 @@ void handleConfigureNotify(XEvent *ev){
   XMoveResizeWindow(wm.display, frame, e->x, e->y, e->width, e->height);
 }
 
+void handleKeyPress() // broken
+
 void spawn(Arg *arg){
   if(fork() == 0){
     setsid();
@@ -520,11 +518,7 @@ void spawn(Arg *arg){
 }
 
 void kill(Arg *arg){
-  (void)arg;
-
-  Window focusedWindow;
-  int revert_to;
-  XGetInputFocus(wm.display, &focusedWindow, &revert_to);
+  Window focusedWindow = arg->win;
 
   if(focusedWindow == wm.root || focusedWindow == None){
     focusedWindow = wm.focused_Window;
@@ -566,26 +560,6 @@ void kill(Arg *arg){
   }
 }
 
-void handleKeyPress(XEvent *ev){
-  XKeyEvent *e = &ev->xkey;
-  KeySym keysym = XkbKeycodeToKeysym(wm.display, e->keycode, 0, 0);
-
-  for(unsigned int i = 0; i < sizeof(keys)/sizeof(*keys); i++){
-    if(keysym == keys[i].key && (e->state & keys[i].modifier) == keys[i].modifier){
-      if(keys[i].func){
-        keys[i].func(&keys[i].arg);
-      }
-      return;
-    }
-  }
-}
-
-Window getFocusedWindow(void){
-  Window focused;
-  int revert;
-  XGetInputFocus(wm.display, &focused, &revert);
-  return focused;
-}
 
 void increaseVolume(Arg *arg){
   (void)arg;
@@ -663,9 +637,7 @@ void setWindowLayoutFloating(Arg *arg){
 }
 
 void addWindowToLayout(Arg *arg){
-  (void)arg;
-
-  Window focusedWindow = getFocusedWindow();
+  Window focusedWindow = arg->win;
 
   if(clientWindowExists(focusedWindow)){
     wm.client_windows[getClientIndex(focusedWindow)].inLayout = true;
@@ -674,25 +646,19 @@ void addWindowToLayout(Arg *arg){
 }
 
 void moveWindowUp(Arg *arg){
-  (void)arg;
-
-  Window focusedWindow = getFocusedWindow();
+  Window focusedWindow = arg->win;
 
   moveClientUpLayout(&wm.client_windows[getClientIndex(focusedWindow)]);
 }
 
 void moveWindowDown(Arg *arg){
-  (void)arg;
-
-  Window focusedWindow = getFocusedWindow();
+  Window focusedWindow = arg->win;
 
   moveClientDownLayout(&wm.client_windows[getClientIndex(focusedWindow)]);
 }
 
 void fullscreen(Arg *arg){
-  (void)arg;
-
-  Window focusedWindow = getFocusedWindow();
+  Window focusedWindow = arg->win;
 
   uint32_t clientIndex = getClientIndex(focusedWindow);
   if(!wm.client_windows[clientIndex].fullscreen){
@@ -716,9 +682,7 @@ void disableBar(Arg *arg){
 }
 
 void cycleWindows(Arg *arg){
-  (void)arg;
-
-  Window focusedWindow = getFocusedWindow();
+  Window focusedWindow = arg->win;
 
   int32_t currentIndex = -1;
   for(uint32_t i = 0; i < wm.clients_count; i++){
@@ -738,19 +702,20 @@ void cycleWindows(Arg *arg){
   }
 }
 
-void handleKeyPress(XEvent *ev){
+void switchDesktop(Arg *arg){
+  int newDesktop = arg->i;
 
-  else if((e->state & MASTER_KEY) && (e->state & ShiftMask) && XK_0 <= XkbKeycodeToKeysym(wm.display, e->keycode, 0, 0) && XkbKeycodeToKeysym(wm.display, e->keycode, 0, 0) <= XK_9){
-    int newDesktop = XkbKeycodeToKeysym(wm.display, e->keycode, 0, 0) - XK_0;
-    if(clientWindowExists(focusedWindow) && newDesktop < DESKTOP_COUNT){
-      moveWindowToDesktop(focusedWindow, newDesktop);
-    }
+  if(newDesktop != wm.currentDesktop && newDesktop < DESKTOP_COUNT){
+    changeDesktop(newDesktop);
   }
-  else if((e->state & MASTER_KEY) && XK_0 <= XkbKeycodeToKeysym(wm.display, e->keycode, 0, 0) && XkbKeycodeToKeysym(wm.display,e->keycode, 0, 0) <= XK_9){
-    int newDesktop = XkbKeycodeToKeysym(wm.display, e->keycode, 0, 0) - XK_0;
-    if(newDesktop != wm.currentDesktop && newDesktop < DESKTOP_COUNT){
-      changeDesktop(newDesktop);
-    }
+}
+
+void transferWindowToDesktop(Arg *arg){
+  int newDesktop = arg->i;
+  Window focusedWindow = arg->win;
+
+  if(clientWindowExists(focusedWindow) && newDesktop < DESKTOP_COUNT){
+    moveWindowToDesktop(focusedWindow, newDesktop);
   }
 }
 
