@@ -16,8 +16,6 @@ So far meow has support for:<br>
 - [ ] Built in bar(in progress, maybe ~50% done)<br>
 - [ ] Hover to select windows<br>
 - [ ] Multiple monitors<br><br><br><br>
-  
-sadly EMWH suppot will be added in a future version where i will rewrite everything from scratch in a better way overall<br>
 
 ## Instalation
 <br>
@@ -30,3 +28,9 @@ But if you'd like to see this project get finished someday give it a star and i 
 I want to mention github.com/cococry/ragnar as ragnar's old code helped me understand alot of things,<br>
 Make sure to check it out aswell!<br><br>
 
+## Bugs
+
+- [] Launching firefox(maybe any window) has a small chance to spawn a 0,0 ignoring the wm(temp fix : force quit with ctrl+q and it only happends on startup for me sometimes)
+- [] Firefox permission popup will sometimes spawn behind the window and firefox window needs to be focused to close it
+- [] Anything related to EMWH may not work since its not supported yet
+- [] TODO. Will be adding more bugs that i encounter later, should have started keeping track of that earlier

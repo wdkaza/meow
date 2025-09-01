@@ -37,6 +37,10 @@
 #define MIN(a, b) (((a)<(b))?(a):(b))
 #define MAX(a, b) ((a) > (b) ? (a) : b)
 
+static unsigned int numlockmask = 0;
+#define MODMASK(mask) (mask & ~(numlockmask | LockMask) & (ShiftMask|ControlMask|Mod1Mask|Mod2Mask|Mod3Mask|Mod4Mask|Mod5Mask))
+#define LENGTH(X)     (sizeof X / sizeof X[0])
+
 typedef enum{
   WINDOW_LAYOUT_TILED_MASTER = 0,
   WINDOW_LAYOUT_FLOATING
@@ -215,21 +219,46 @@ XWM xwm_init(){
   return wm;
 }
 
-void grabKeys(void){
-  KeyCode code;
+void dwm_updateNumlockMask(){
+  unsigned int i;
+  int j;
+  XModifierKeymap *modmap;
 
-  XUngrabKey(wm.display, AnyKey, AnyModifier, wm.root);
+  numlockmask = 0;
+  modmap = XGetModifierMapping(wm.display);
+  for(i = 0; i < 8; i++){
+    for(j = 0; j < modmap->max_keypermod; j++){
+      if(modmap->modifiermap[i * modmap->max_keypermod + j] == XKeysymToKeycode(wm.display, XK_Num_Lock)){
+        numlockmask = (1 << i);
+      }
+    }
+  }
+  XFreeModifiermap(modmap);
+}
 
-  for(unsigned int i = 0; i < sizeof(keys)/sizeof(*keys); i++){
-    code = XKeysymToKeycode(wm.display, keys[i].key);
-    if(code){
-    XGrabKey(wm.display,
-             code,
-             keys[i].modifier,
-             wm.root,
-             true,
-             GrabModeAsync,
-             GrabModeAsync);
+void dwm_grabKeys(void)
+{
+  dwm_updateNumlockMask();
+  {
+    unsigned int i, j, k;
+    unsigned int modifiers[] = {0, LockMask, numlockmask, numlockmask|LockMask};
+    int start, end, skip;
+    KeySym *syms;
+
+    XUngrabKey(wm.display, AnyKey, AnyModifier, wm.root);
+    XDisplayKeycodes(wm.display, &start, &end);
+    syms = XGetKeyboardMapping(wm.display, start, end - start + 1, &skip);
+    if(!syms){
+      return;
+    }
+    for(k = start; k <= (unsigned int)end; k++){
+      for(i = 0; i < LENGTH(keys); i++){
+        if(keys[i].key == syms[(k - start) * skip]){
+          for(j = 0; j < LENGTH(modifiers); j++){
+            XGrabKey(wm.display, k, keys[i].modifier | modifiers[j], wm.root, True, GrabModeAsync, GrabModeAsync);
+          }
+        }
+      }
     }
   }
 }
@@ -243,7 +272,7 @@ void xwm_run(){
   XSelectInput(wm.display, wm.root, SubstructureRedirectMask | SubstructureNotifyMask);
   XSync(wm.display, false);
 
-  grabKeys();
+  dwm_grabKeys();
 
   wm.clients_count = 0;
   wm.cursor_start_frame_size = (Vec2){ .x = 0.0f, .y = 0.0f};
