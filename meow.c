@@ -8,6 +8,7 @@
 #include <X11/XKBlib.h>
 #include <X11/cursorfont.h>
 #include "config.h"
+#include "structs.h"
 #include <sys/select.h>
 
 // bug where windows dont get mapped until next event
@@ -161,31 +162,52 @@ void initDesktops(){
   }
 }
 
+
 void initBar(){
   wm.bar.hidden = false;
-  wm.bar.win = XCreateSimpleWindow(wm.display,
-                                   wm.root,
-                                   0, 0, 
-                                   wm.screenWidth - (2 * BORDER_WIDTH), BAR_HEIGHT, 
-                                   BORDER_WIDTH, BORDER_COLOR,
-                                   BAR_COLOR); // TODO : add padding customization later
 
+  XVisualInfo vinfo;
+  XMatchVisualInfo(wm.display, DefaultScreen(wm.display), 32, TrueColor, &vinfo);
+
+  XSetWindowAttributes attrs;
+  attrs.colormap = XCreateColormap(wm.display, wm.root, vinfo.visual, AllocNone);
+  attrs.border_pixel = 0;
+  attrs.background_pixel = 0;
+
+  wm.bar.win = XCreateWindow(
+               wm.display,
+               wm.root,
+               0, 0,
+               wm.screenWidth - (2 * BORDER_WIDTH), BAR_HEIGHT,
+               0,             
+               vinfo.depth, 
+               InputOutput,
+               vinfo.visual,
+               CWColormap | CWBorderPixel | CWBackPixel,
+               &attrs
+  );
 
   wm.bar.draw = XftDrawCreate(wm.display,
                               wm.bar.win,
-                              DefaultVisual(wm.display, DefaultScreen(wm.display)),
-                              DefaultColormap(wm.display, DefaultScreen(wm.display)));
+                              vinfo.visual,
+                              attrs.colormap);
 
   wm.bar.font = XftFontOpenName(wm.display, DefaultScreen(wm.display), BAR_FONT);
 
   XftColorAllocName(
-    wm.display,
-    DefaultVisual(wm.display, DefaultScreen(wm.display)),
-    DefaultColormap(wm.display, DefaultScreen(wm.display)),
-    BAR_FONT_COLOR,
-    &wm.bar.color);
+        wm.display,
+        vinfo.visual,
+        attrs.colormap,
+        BAR_FONT_COLOR,
+        &wm.bar.color);
 
   initBarModules();
+
+  XClassHint classHint;
+  classHint.res_name = "meowbar";
+  classHint.res_class = "MeowBar";
+
+  XSetClassHint(wm.display, wm.bar.win, &classHint);
 
   XSelectInput(wm.display, wm.bar.win, SubstructureRedirectMask | SubstructureNotifyMask);
   XMapWindow(wm.display, wm.bar.win);
@@ -1119,32 +1141,58 @@ void drawBar(){
       centerCount++;
     }
   }
-  
-  int leftBoundary = leftX;
-  int rightBoundary = attrs.width - BAR_MODULE_PADDING - totalRightWidth - BAR_SEGMENTS_COUNT;
-  int availableCenterSpace = rightBoundary - leftBoundary;
-  
-  if(totalCenterWidth <= availableCenterSpace){
-    int centerStartX = leftBoundary + (availableCenterSpace - totalCenterWidth) / 2;
-    
-    for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
-      if(segmentValid[i] && BarSegments[i].position == SEGMENT_CENTER){
-        drawTextAt(centerStartX, baseline, segmentTexts[i]);
-        centerStartX += segmentWidths[i] + BAR_SEGMENTS_COUNT;
+  if(BAR_TRUE_CENTER){
+    int availableCenterSpace = attrs.width - (BAR_SEGMENTS_COUNT * 2);
+    int centerStartX = (attrs.width - totalCenterWidth) / 2;
+
+    if(totalCenterWidth <= availableCenterSpace){
+      for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
+        if(segmentValid[i] && BarSegments[i].position == SEGMENT_CENTER){
+          drawTextAt(centerStartX, baseline, segmentTexts[i]);
+          centerStartX += segmentWidths[i] + BAR_MODULE_PADDING;
+        }
       }
     }
-  } 
-  else{
-    int fallbackX = leftBoundary + BAR_SEGMENTS_COUNT;
-    for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
-      if(segmentValid[i] && BarSegments[i].position == SEGMENT_CENTER){
-        if(fallbackX + segmentWidths[i] < rightBoundary){
-          drawTextAt(fallbackX, baseline, segmentTexts[i]);
-          fallbackX += segmentWidths[i] + BAR_SEGMENTS_COUNT;
+    else{
+      int fallbackX = BAR_SEGMENTS_COUNT;
+      for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
+        if(segmentValid[i] && BarSegments[i].position == SEGMENT_CENTER){
+          if(fallbackX + segmentWidths[i] < attrs.width - BAR_SEGMENTS_COUNT){
+            drawTextAt(fallbackX, baseline, segmentTexts[i]);
+            fallbackX += segmentWidths[i] + BAR_SEGMENTS_COUNT;
+          }
         }
       }
     }
   }
+  else if(!BAR_TRUE_CENTER){
+    int leftBoundary = leftX;
+    int rightBoundary = attrs.width - BAR_MODULE_PADDING - totalRightWidth - BAR_SEGMENTS_COUNT;
+    int availableCenterSpace = rightBoundary - leftBoundary;
+    
+    if(totalCenterWidth <= availableCenterSpace){
+      int centerStartX = leftBoundary + (availableCenterSpace - totalCenterWidth) / 2;
+      
+      for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
+        if(segmentValid[i] && BarSegments[i].position == SEGMENT_CENTER){
+          drawTextAt(centerStartX, baseline, segmentTexts[i]);
+          centerStartX += segmentWidths[i] + BAR_SEGMENTS_COUNT;
+        }
+      }
+    } 
+    else{
+      int fallbackX = leftBoundary + BAR_SEGMENTS_COUNT;
+      for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
+        if(segmentValid[i] && BarSegments[i].position == SEGMENT_CENTER){
+          if(fallbackX + segmentWidths[i] < rightBoundary){
+            drawTextAt(fallbackX, baseline, segmentTexts[i]);
+            fallbackX += segmentWidths[i] + BAR_SEGMENTS_COUNT;
+          }
+        }
+      }
+    }
+  }
+
   
   XFlush(wm.display);
 }

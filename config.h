@@ -1,90 +1,44 @@
 #pragma once
-#include <X11/X.h>
-#include <stdint.h>
-#include <X11/keysym.h>
-#include <X11/Xlib.h>
+#include "structs.h"
 
-// multi monitors not supported since i have no wqay to debug them
-// i realised too late you could probably run multiple xephyr sesions to debug them
-
-//// default keybinds suck TODO make them better later
 
 #define MONITOR_WIDTH 1920
 #define MONITOR_HEIGHT 1080
 
-#define TERMINAL_CMD "kitty &"
-#define BROWSER_CMD "firefox &"
-#define ROFI_CMD "rofi -show &"
-#define VOLUME_UP_CMD "pactl set-sink-volume @DEFAULT_SINK@ +5%"
-#define VOLUME_DOWN_CMD "pactl set-sink-volume @DEFAULT_SINK@ -5%"
-#define VOLUME_MUTE_CMD "pactl set-sink-mute @DEFAULT_SINK@ toggle"
-#define BRIGHTNESS_UP_CMD "brightnessctl set +5%"
-#define BRIGHTNESS_DOWN_CMD "brightnessctl set 5%-"
-#define BRIGHTNESS_MIN_CMD "brightnessctl set 1%"
-
 #define START_WINDOW_GAP 20
 #define DESKTOP_COUNT 10
-#define BORDER_WIDTH 4
-#define BORDER_FOCUSED_WIDTH 4 // currently a bit broken visually(layout will look ugly)
-#define BORDER_COLOR 0x404231
-#define BORDER_FOCUSED_COLOR 0xf2fcb1
+#define BORDER_WIDTH 2
+#define BORDER_FOCUSED_WIDTH 2 // currently a bit broken visually(layout will look ugly)
+#define BORDER_COLOR 0x1e1e1e
+#define BORDER_FOCUSED_COLOR 0xADD8E6
 
 #define BG_COLOR 0x000000
 #define BAR_REFRESH_TIME 1 // in seconds
 
-// new config 
+#define MOD Mod1Mask // alt by default
 
-// ignore
-typedef union{
-  int i;
-  const void *v;
-  Window win;
-} Arg;
-// ignore
-void spawn(Arg *arg);
-void kill(Arg *arg);
-void increaseVolume(Arg *arg);
-void decreaseVolume(Arg *arg);
-void muteVolume(Arg *arg);
-void addWindowToLayout(Arg *arg);
-void increaseBrightness(Arg *arg);
-void decreaseBrightness(Arg *arg);
-void minBrightness(Arg *arg);
-void decreaseGapSize(Arg *arg);
-void increaseGapSize(Arg *arg);
-void setWindowLayoutTiled(Arg *arg);
-void setWindowLayoutFloating(Arg *arg);
-void moveWindowUp(Arg *arg);
-void moveWindowDown(Arg *arg);
-void fullscreen(Arg *arg);
-void disableBar(Arg *arg);
-void enableBar(Arg *arg);
-void cycleWindows(Arg *arg);
-void switchDesktop(Arg *arg);
-void transferWindowToDesktop(Arg *arg);
-// ignore
-typedef struct KeyEvent {
-  unsigned int modifier;
-  KeySym key;
-  void(*func)(Arg *a);
-  Arg arg;
-} KeyEvent;
+// ===define values HERE ===
+// keepsame |  [name]   |   [args] (if space is present seperate by "arg1", "arg2")
+static char *terminal[] = {"kitty", NULL};
+static char *launcher[] = {"rofi", "-show", NULL};
+static char *screenshot[] = {"scrot", NULL};
+// ===define values HERE ===
 
 
 // all actions you can find below
 //
-// spawn,        (value required), (pretty much executes commands so can be used for them too like adjusting volume)
+// spawn,                 (value required), (pretty much executes commands so can be used for them too like adjusting volume)
 // kill,
 // addToLayout
-// moveWindowUp  (inLayout)
-// moveWindowDown(inLayout)
+// moveWindowUp           (inLayout)
+// moveWindowDown         (inLayout)
 // disableBar     
 // enableBar     
 // increaseVolume
 // decreaseVolume
 // muteVolume
-// increaseBrightness
-// decreaseBrigthness
+// increaseBrightness     (you can use "spawn" with your custom command if this one wont work, also do the same for others if they do not work for you)
+// decreaseBrigthness     
 // minBrigthness (1%)
 // increaseGapSize
 // decreaseGapSize
@@ -92,15 +46,8 @@ typedef struct KeyEvent {
 // fullscreen
 // setWindowLayoutTiled
 //
-
-#define MOD Mod1Mask // alt by default
-
-// ===define values HERE ===
-// keepsame |  [name]   |   [args]
-static char *terminal[] = {"kitty", NULL};
-static char *launcher[] = {"rofi", "-show", NULL};
-// ===define values HERE ===
-
+// switchDesktop           (value required)
+// transferWindowToDesktop (value required)
 
 // [MOD-KEY, KEY, ACTION, VALUE(if none set to 0)]
 // [MOD-KEY|ShiftMask, ...]   for mod+shift keybinds
@@ -111,9 +58,11 @@ struct KeyEvent keys[] = {
   // {MOD, XK_F3,  spawn,              {.v = (const char *[]){"pactl", "set-sink-volume", "@DEFAULT_SINK", "+5%", NULL}}}
   // split args by coma and double quote them "arg"
   // ^^^ example of custom command ^^^
-  // keeping it simple by using increaseVolume/decreaseVolume/muteVolume, etc
+  // keeping it simple by using increaseVolume/decreaseVolume/muteVolume, etc instead of "spawn"
+  //
   {MOD, XK_Return, spawn,                   {.v = terminal}},
   {MOD, XK_slash,  spawn,                   {.v = launcher}},
+  {MOD, XK_p,      spawn,                   {.v = screenshot}},
   {MOD, XK_q,      kill,                    {0}},
   {MOD, XK_space,  addWindowToLayout,       {0}},
   {MOD, XK_Up,     moveWindowUp,            {0}},
@@ -143,6 +92,7 @@ struct KeyEvent keys[] = {
   {MOD, XK_7,      switchDesktop,           {.i = 7}},
   {MOD, XK_8,      switchDesktop,           {.i = 8}},
   {MOD, XK_9,      switchDesktop,           {.i = 9}},
+  // 0 might be bugged visually with the current bar
 
   {MOD|ShiftMask, XK_1, transferWindowToDesktop, {.i = 1}},
   {MOD|ShiftMask, XK_2, transferWindowToDesktop, {.i = 2}},
@@ -153,39 +103,30 @@ struct KeyEvent keys[] = {
   {MOD|ShiftMask, XK_7, transferWindowToDesktop, {.i = 7}},
   {MOD|ShiftMask, XK_8, transferWindowToDesktop, {.i = 8}},
   {MOD|ShiftMask, XK_9, transferWindowToDesktop, {.i = 9}},
+  // 0 might be bugged visually with the current bar
 };
 
-// ignore
-typedef enum {
-  SEGMENT_LEFT = 0,
-  SEGMENT_CENTER,
-  SEGMENT_RIGHT
-} SegmentPosition;
-// ignore
-typedef struct {
-  char name[32];
-  char command[256];
-  char format[64];
-  SegmentPosition position;
-  bool enabled;
-} BarModuleConfig;
-// ignore ^^^^^
 
 
 
+#define BAR_HEIGHT 30
 
-
-
-#define BAR_HEIGHT 24
-#define BAR_COLOR 0x282a36
+#define BAR_COLOR 0xffffff
 #define BAR_FONT "JetBrains Mono Nerd Font:size11:style=bold"
-#define BAR_FONT_SIZE 18
+#define BAR_FONT_SIZE 30
 #define BAR_FONT_COLOR "#f8f8f8"
+#define DESKTOP_HIGHLIGHT_COLOR "#f8f8f8" // useless, keep it the same as BAR_FONT_COLOR if this will not be removed
+#define BAR_BORDER_WIDTH 1
+
 #define BAR_PADDING_X 0
 #define BAR_PADDING_Y 0
-#define DESKTOP_HIGHLIGHT_COLOR "#f8f8f8" // ueless, keep it the same as BAR_FONT_COLOR if this will not be removed
+
+#define BAR_TRUE_CENTER true // wont account for left/rigth segmenents and will put it(segment) exactly in themiddle
+
 #define BAR_MODULE_PADDING 10 // padding from the sides of the bar
 #define BAR_SEGMENT_SPACING 30 // padding between modules
+
+
 
 // format:
 // .name = 
@@ -222,7 +163,7 @@ static const BarModuleConfig BarSegments[BAR_SEGMENTS_COUNT] = {
     .command = "date +%H:%M:%S",
     .format = "%s",
     .position = SEGMENT_CENTER,
-    .enabled = false
+    .enabled = true
   },
   {
     .name = "desktop",

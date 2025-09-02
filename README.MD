@@ -1,10 +1,11 @@
 # Meow
 A very lightweight and minimal X window manager made in C, insipired by i3, dwm and ragnarWM.<br>
 Minimal, no desktop bloat, no unnecessary features. Just clean.<br><br><br>
-
-![preview](2025-08-06-214317_1920x1080_scrot.png)<br>
-![preview2](2025-08-12-014816_1920x1080_scrot.png)<br>
-![preview3](2025-08-13-164111_1920x1080_scrot.png)<br>
+![preview1](2025-09-02-193404_1920x1080_scrot.png)<br>
+![preview3](2025-08-12-014816_1920x1080_scrot.png)<br>
+![preview4](2025-08-13-164111_1920x1080_scrot.png)<br>
+![preview2](2025-09-02-001642_1920x1080_scrot.png)<br>
+![preview5](2025-08-06-214317_1920x1080_scrot.png)<br>
 <br><br><br>
 ## Features<br>
 So far meow has support for:<br>
@@ -12,8 +13,8 @@ So far meow has support for:<br>
 - [x] Tiling layouts(just one currently)<br>
 - [x] Window borders<br>
 - [x] Gaps between windows in a layout<br>
-- [x] Better config(small bug fixes left)
-- [ ] Built in bar(in progress, maybe ~50% done)<br>
+- [x] Better config
+- [ ] Built in bar(100% will get reworked or improved heavily, next(or maybe fuck the bar and EMWH support next, not sure, would be easier to allow other bars))<br>
 - [ ] Hover to select windows<br>
 - [ ] Multiple monitors<br><br><br><br>
 
