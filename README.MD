@@ -14,7 +14,8 @@ So far meow has support for:<br>
 - [x] Window borders<br>
 - [x] Gaps between windows in a layout<br>
 - [x] Better config
-- [ ] Built in bar(100% will get reworked or improved heavily, next(or maybe fuck the bar and EMWH support next, not sure, would be easier to allow other bars))<br>
+- [x] Built in bar(100% will get reworked or improved heavily, next(or maybe fuck the bar and EMWH support next, not sure, would be easier to allow other bars))<br>
+- [x] EWMH support
 - [ ] Hover to select windows<br>
 - [ ] Multiple monitors<br><br><br><br>
 
