@@ -7,8 +7,8 @@
 
 #define START_WINDOW_GAP 20
 #define DESKTOP_COUNT 10
-#define BORDER_WIDTH 2
-#define BORDER_FOCUSED_WIDTH 2 // currently a bit broken visually(layout will look ugly)
+#define BORDER_WIDTH 1
+#define BORDER_FOCUSED_WIDTH 1 // currently a bit broken visually(layout will look ugly)
 #define BORDER_COLOR 0x1e1e1e
 #define BORDER_FOCUSED_COLOR 0xADD8E6
 
@@ -43,11 +43,11 @@ static char *screenshot[] = {"scrot", NULL};
 // increaseGapSize
 // decreaseGapSize
 // cycleWindows
-// fullscreen
+// fullscreen             
 // setWindowLayoutTiled
 //
-// switchDesktop           (value required)
-// transferWindowToDesktop (value required)
+// switchDesktop          (value required)
+// transferWindowToDesktop(value required)
 
 // [MOD-KEY, KEY, ACTION, VALUE(if none set to 0)]
 // [MOD-KEY|ShiftMask, ...]   for mod+shift keybinds
@@ -123,7 +123,7 @@ struct KeyEvent keys[] = {
 
 #define BAR_TRUE_CENTER true // wont account for left/rigth segmenents and will put it(segment) exactly in themiddle
 
-#define BAR_MODULE_PADDING 10 // padding from the sides of the bar
+#define BAR_MODULE_PADDING 20 // padding from the sides of the bar
 #define BAR_SEGMENT_SPACING 30 // padding between modules
 
 
@@ -140,14 +140,14 @@ static const BarModuleConfig BarSegments[BAR_SEGMENTS_COUNT] = {
   {
     .name = "volume",
     .command = "pactl get-sink-volume @DEFAULT_SINK@ | grep -o '[0-9]*%' | head -1 | tr -d '%'",
-    .format = "VOL: %d%% |",
+    .format = "VOL: %d%% >",
     .position = SEGMENT_RIGHT,
     .enabled = true
   },
   {
     .name = "brightness",
     .command = "brightnessctl get | awk -v max=$(brightnessctl max) '{print int($1*100/max)}'",
-    .format = "BRT: %d%% |",
+    .format = "BRT: %d%% >",
     .position = SEGMENT_RIGHT,
     .enabled = true
   },

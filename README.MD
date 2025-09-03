@@ -1,11 +1,11 @@
 # Meow
 A very lightweight and minimal X window manager made in C, insipired by i3, dwm and ragnarWM.<br>
 Minimal, no desktop bloat, no unnecessary features. Just clean.<br><br><br>
-![preview1](2025-09-02-193404_1920x1080_scrot.png)<br>
-![preview3](2025-08-12-014816_1920x1080_scrot.png)<br>
-![preview4](2025-08-13-164111_1920x1080_scrot.png)<br>
-![preview2](2025-09-02-001642_1920x1080_scrot.png)<br>
-![preview5](2025-08-06-214317_1920x1080_scrot.png)<br>
+![preview1](screenshots/2025-09-02-193404_1920x1080_scrot.png)<br>
+![preview3](screenshots/2025-08-12-014816_1920x1080_scrot.png)<br>
+![preview4](screenshots/2025-08-13-164111_1920x1080_scrot.png)<br>
+![preview2](screenshots/2025-09-02-001642_1920x1080_scrot.png)<br>
+![preview5](screenshots/2025-08-06-214317_1920x1080_scrot.png)<br>
 <br><br><br>
 ## Features<br>
 So far meow has support for:<br>
@@ -35,4 +35,6 @@ Make sure to check it out aswell!<br><br>
 - [ ] Launching firefox(maybe any window) has a small chance to spawn a 0,0 ignoring the wm(temp fix : force quit with ctrl+q and it only happends on startup for me sometimes)
 - [ ] Firefox permission popup will sometimes spawn behind the window and firefox window needs to be focused to close it
 - [ ] Anything related to EMWH may not work since its not supported yet
+- [ ] Opening a sub window? maybe thats what its called of a window, example in discord [add file] will not map it(thunar) correctly for some reason
+- [ ] Fullscreening should probably unmap other windows, looks weird with transparancy
 - [ ] TODO. Will be adding more bugs that i encounter later, should have started keeping track of that earlier

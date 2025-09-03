@@ -569,6 +569,7 @@ void spawn(Arg *arg){
 }
 
 void kill(Arg *arg){
+  (void)arg;
   Window focusedWindow = wm.focused_Window;
 
   if(clientWindowExists(focusedWindow) && focusedWindow != wm.root){
@@ -685,6 +686,7 @@ void setWindowLayoutFloating(Arg *arg){
 }
 
 void addWindowToLayout(Arg *arg){
+  (void)arg;
   Window focusedWindow = wm.focused_Window;
 
   if(clientWindowExists(focusedWindow)){
@@ -693,19 +695,22 @@ void addWindowToLayout(Arg *arg){
   }
 }
 
-void moveWindowUp(Arg *arg){
+void moveWindowDown(Arg *arg){ // TODO : lmaoo these are inverted 
+  (void)arg;
   Window focusedWindow = wm.focused_Window;
 
   moveClientUpLayout(&wm.client_windows[getClientIndex(focusedWindow)]);
 }
 
-void moveWindowDown(Arg *arg){
+void moveWindowUp(Arg *arg){ // TODO : lmaoo these are inverted 
+  (void)arg;
   Window focusedWindow = wm.focused_Window;
 
   moveClientDownLayout(&wm.client_windows[getClientIndex(focusedWindow)]);
 }
 
 void fullscreen(Arg *arg){
+  (void)arg;
   Window focusedWindow = wm.focused_Window;
 
   uint32_t clientIndex = getClientIndex(focusedWindow);
@@ -905,14 +910,13 @@ void setFullscreen(Window w){
   int screen = DefaultScreen(wm.display);
   int screenWidth = DisplayWidth(wm.display, screen);
   int screenHeight = DisplayHeight(wm.display, screen);
-  // BUG HERE (full screen right now only works with gaps TODO: make actual fullscreen toggable) 
   XMoveResizeWindow(wm.display,
                     frame,
-                    wm.windowGap - BORDER_WIDTH,
-                    wm.windowGap - BORDER_WIDTH,
-                    screenWidth - wm.windowGap * 2,
-                    screenHeight - wm.windowGap * 2);
-  XResizeWindow(wm.display, w, screenWidth - wm.windowGap * 2, screenHeight - wm.windowGap * 2);
+                    0 - BORDER_WIDTH,
+                    0 - BORDER_WIDTH,
+                    screenWidth,
+                    screenHeight);
+  XResizeWindow(wm.display, w, screenWidth, screenHeight);
   hideBar();
 }
 
@@ -934,13 +938,14 @@ void unsetFullscreen(Window w){
   XMoveResizeWindow(wm.display, frame, centerX, centerY, windowWidth, windowHeight);
   XResizeWindow(wm.display, w, windowWidth, windowHeight);
   unhideBar();
+  retileLayout();
 }
 
 void hideBar(){
   if(wm.bar.hidden) return;
   XUnmapWindow(wm.display, wm.bar.win);
   wm.bar.hidden = true;
-  retileLayout();
+  //retileLayout();
 }
 
 void unhideBar(){
