@@ -10,10 +10,6 @@
 #include "config.h"
 #include "structs.h"
 #include <sys/select.h>
-
-// bug where windows dont get mapped until next event
-// still exists bcs of bad bar update, but its better now, TODO: fix later
-
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -23,17 +19,13 @@
 #include <assert.h>
 #include <time.h>
 
-// thanks @cococry for some of the code
-// @cococry also insipered me to try to code this 
-// like actually massive props to cococry's old code and dwm's code 
-// it helpmed me so much to understand how to even start making a wm
+// hello! thanks for checking out this code, overall its a mess is what i can say
+// it would be nice to rewrite it someday but im happy with it for now
+// and aslong as everything you see works fine its ok :D
+
+// this project started with a "what if" question :)
 
 #define CLIENT_WINDOW_CAP 256
-
-
-// the code is a big mess overall is what i can say
-// its my first time making a window manager and i didnt know alot of things
-// im planning to start from scratch with the new knowledge, after finishing everything i want
 
 #define MIN(a, b) (((a)<(b))?(a):(b))
 #define MAX(a, b) ((a) > (b) ? (a) : b)
@@ -58,6 +50,7 @@ typedef struct {
   bool fullscreen;
   Vec2 fullscreenRevertSize;
   bool inLayout;
+  bool forceManage;
   int32_t desktopIndex;
 } Client;
 
@@ -103,8 +96,8 @@ typedef struct {
 
   Bar bar;
 
-  Atom ATOM_WM_DELETE_WINDOW; // remove later(useless mostly)
-  Atom ATOM_WM_PROTOCOLS; // remove later(useless mostly)
+  Atom ATOM_WM_DELETE_WINDOW;
+  Atom ATOM_WM_PROTOCOLS;
 } XWM;
 
 static void handleConfigureRequst(XEvent *ev);
@@ -112,7 +105,7 @@ static void handleUnmapNotify(XEvent *ev);
 static void handleDestroyNotify(XEvent *ev);
 static void handleConfigureNotify(XEvent *ev);
 static void handleMapRequest(XEvent *ev);
-static void xwmWindowFrame(Window win, bool createdBeforeWindowManager);
+static void xwmWindowFrame(Window win);
 static void xwmWindowUnframe(Window w);
 static void handleButtonPress(XEvent *ev);
 static void handleKeyRelease(XEvent *ev);
@@ -140,6 +133,14 @@ static void initBarModules();
 static void hideBar();
 static void forceModuleUpdate(const char* moduleName);
 static void unhideBar();
+static void dwm_updateNumlockMask();
+static void dwm_grabKeys(void);
+static XWM xwm_init();
+static void xwm_run();
+static void focusNextWindow();
+static void updateWindowBorders(Window w);
+static void applyRules(Client *c);
+static bool isLayoutTiling(WindowLayout layout);
 
 static XWM wm;
 
@@ -282,6 +283,7 @@ void dwm_grabKeys(void)
         }
       }
     }
+    XFree(syms);
   }
 }
 
@@ -442,12 +444,6 @@ void handleMotionNotify(XEvent *ev){
     }
   }
   else if((e->state & MOD) && (e->state & Button3Mask)){
-    /*
-    Vec2 rdy = (Vec2){.x = wm.cursor_start_frame_size.x + MAX(dx, -wm.cursor_start_frame_size.x),
-                      .y = wm.cursor_start_frame_size.y + MAX(dy, -wm.cursor_start_frame_size.y)};
-    XResizeWindow(wm.display, frame, (int)rdy.x, (int)rdy.y);
-    XResizeWindow(wm.display, e->window, (int)rdy.x, (int)rdy.y);
-    */
     int new_width = MAX(1, (int)wm.cursor_start_frame_size.x + dx);
     int new_height = MAX(1, (int)wm.cursor_start_frame_size.y + dy);
     
@@ -732,6 +728,7 @@ void disableBar(Arg *arg){
   (void)arg;
 
   hideBar();
+  retileLayout();
 }
 
 void cycleWindows(Arg *arg){
@@ -789,45 +786,110 @@ void sendClientMessage(Window w, Atom a){
   XSendEvent(wm.display, w, false, NoEventMask, &msg);
 }
 
+void manageFloatingWindow(Client *c){
+  if(!c) return;
+
+  XWindowAttributes attr;
+  if(!XGetWindowAttributes(wm.display, c->win, &attr)) return;
+
+  unsigned int ww = (unsigned int)attr.width;
+  unsigned int wh = (unsigned int)attr.height;
+
+  int availableHeight = wm.screenHeight - (wm.bar.hidden ? 0 : BAR_HEIGHT);
+  int topOffset = wm.bar.hidden ? 0 : BAR_HEIGHT;
+
+  int centerX = (wm.screenWidth - (int)ww) / 2;
+  int centerY = topOffset + (availableHeight - (int)wh) / 2;
+
+  centerX -= BORDER_WIDTH;
+  centerY -= BORDER_WIDTH;
+
+  if(centerX < -BORDER_WIDTH) centerX = -BORDER_WIDTH;
+  if(centerY < -BORDER_WIDTH) centerY = -BORDER_WIDTH;
+
+  c->inLayout = false;
+  c->fullscreen = false;
+
+  if(c->frame != 0){
+    XMoveResizeWindow(wm.display, c->frame, centerX, centerY, (int)ww, (int)wh);
+  }
+  XResizeWindow(wm.display, c->win, (int)ww, (int)wh);
+}
+
 void handleMapRequest(XEvent *ev){
   XMapRequestEvent *e = &ev->xmaprequest;
-  xwmWindowFrame(e->window, false);
-  XMapWindow(wm.display, e->window);
 
-  Window frame = getFrameWindow(e->window);
-  XRaiseWindow(wm.display, frame);
+  XWindowAttributes attr;
+  if(!XGetWindowAttributes(wm.display, e->window, &attr)) return;
+
+  xwmWindowFrame(e->window);
+
+  int32_t idx = getClientIndex(e->window);
+  if(idx == -1){
+    //fallback
+    XMapWindow(wm.display, e->window);
+    setFocusToWindow(e->window);
+    return;
+  }
+
+  Client *c = &wm.client_windows[idx];
+
+  applyRules(c);
+
+  Window transientFor = None;
+  if(XGetTransientForHint(wm.display, c->win, &transientFor) && transientFor != None){
+    c->inLayout = false;
+    if(c->frame == None) xwmWindowFrame(c->win);
+  }
+
+  if(!c->inLayout){
+    manageFloatingWindow(c);
+    if(c->frame != None) XMapWindow(wm.display, c->frame);
+    XMapWindow(wm.display, c->win);
+  }
+  else{
+    if(c->frame != None) XMapWindow(wm.display, c->frame);
+    XMapWindow(wm.display, c->win);
+    retileLayout();
+  }
+
   XSync(wm.display, false);
-  setFocusToWindow(e->window);
+
+  if(c->fullscreen){
+    setFullscreen(c->win);
+  }
+
+  if(c->frame != None) XRaiseWindow(wm.display, c->frame);
+  setFocusToWindow(c->win);
 }
 
 void handleUnmapNotify(XEvent *ev){
   XUnmapEvent *e = &ev->xunmap;
 
-  if(e->window == wm.bar.win){
+  if(e->window == wm.bar.win) return;
+
+  if(clientFrameExists(e->window)){
     return;
   }
 
-  uint32_t closingIndex = getClientIndex(e->window);
-  if(closingIndex == (uint32_t)-1) return;
+  if(clientWindowExists(e->window)){
+    int32_t idx = getClientIndex(e->window);
+    if(idx == -1) return;
 
+    int32_t desktopIndex = wm.client_windows[idx].desktopIndex;
+    xwmWindowUnframe(e->window);
+    focusNextWindow();
 
-  Window focusedWindow;
-  int revert_to;
-  XGetInputFocus(wm.display, &focusedWindow, &revert_to);
-  int32_t desktopIndex = wm.client_windows[closingIndex].desktopIndex;
-  //bool was_focused = (focusedWindow == e->window);
-
-  xwmWindowUnframe(e->window);
-  focusNextWindow();
-  if(!desktopHasWindows(desktopIndex)){ // a bad fix to a bug where wm would shoot itself in a leg and die
-    for(int32_t i = 0; i < DESKTOP_COUNT; i++){
-      if(desktopHasWindows(i)){
-        changeDesktop(i);
-        break;
+    if(!desktopHasWindows(desktopIndex)){
+      for(int32_t i = 0; i < DESKTOP_COUNT; i++){
+        if(desktopHasWindows(i)){
+          changeDesktop(i);
+          break;
+        }
       }
     }
+    XSync(wm.display, false);
   }
-  XSync(wm.display, false);
 }
 
 void handleDestroyNotify(XEvent *ev){
@@ -861,8 +923,141 @@ Window getFrameWindow(Window w){
   return 0;
 }
 
+void xwmWindowFrame(Window win){
+
+  if(clientWindowExists(win) || clientFrameExists(win)) return;
+
+  XWindowAttributes attribs;
+  if(!XGetWindowAttributes(wm.display, win, &attribs)) return;
+
+  bool override_redirect = attribs.override_redirect;
+
+  Atom aTypeNet =          XInternAtom(wm.display, "_NET_WM_WINDOW_TYPE", False);
+  Atom aTypeDialog =       XInternAtom(wm.display, "_NET_WM_WINDOW_TYPE_DIALOG", False);
+  Atom aTypeUtility =      XInternAtom(wm.display, "_NET_WM_WINDOW_TYPE_UTILITY", False);
+  Atom aTypeSplash =       XInternAtom(wm.display, "_NET_WM_WINDOW_TYPE_SPLASH", False);
+
+  Atom aTypeMenu =         XInternAtom(wm.display, "_NET_WM_WINDOW_TYPE_MENU", False);
+  Atom aTypePopupMenu =    XInternAtom(wm.display, "_NET_WM_WINDOW_TYPE_POPUP_MENU", False);
+  Atom aTypeDropDown =     XInternAtom(wm.display, "_NET_WM_WINDOW_TYPE_DROPDOWN_MENU", False);
+  Atom aTypeTooltip =      XInternAtom(wm.display, "_NET_WM_WINDOW_TYPE_TOOLTIP", False);
+  Atom aTypeCombo =        XInternAtom(wm.display, "_NET_WM_WINDOW_TYPE_COMBO", False);
+  Atom aTypeNotification = XInternAtom(wm.display, "_NET_WM_WINDOW_TYPE_NOTIFICATION", False);
+
+  unsigned char *prop = NULL;
+  Atom actualType;
+  int actualFormat;
+  unsigned long nitems, bytes_after;
+  bool isDialogLike = false;
+  bool isMenuLike = false;
+
+  if(XGetWindowProperty(wm.display, win,
+                        aTypeNet, 0,
+                        (~0L), False,
+                        AnyPropertyType, &actualType,
+                        &actualFormat, &nitems,
+                        &bytes_after, &prop) == Success && prop){
+
+    Atom *atoms = (Atom*)prop;
+    for(unsigned long i = 0; i < nitems; ++i){
+      if(atoms[i] == aTypeDialog   || atoms[i] == aTypeUtility || atoms[i] == aTypeSplash){
+        isDialogLike = true;
+      }
+      if(atoms[i] == aTypeMenu     || atoms[i] == aTypePopupMenu ||
+         atoms[i] == aTypeDropDown || atoms[i] == aTypeTooltip ||
+         atoms[i] == aTypeCombo    || atoms[i] == aTypeNotification){
+        isMenuLike = true;
+      }
+    }
+    
+    XFree(prop);
+    prop = NULL;
+
+  }
+
+  Window transientFor = None;
+  bool has_transient = (XGetTransientForHint(wm.display, win, &transientFor) && transientFor != None);
+
+  bool shouldManage = true;
+  if(isMenuLike && !has_transient){
+    shouldManage = false;
+  }
+  if(!isMenuLike && !isDialogLike && override_redirect){
+    shouldManage = true;
+  }
+
+  if(!shouldManage){
+    return;
+  }
+
+  if(wm.clients_count >= CLIENT_WINDOW_CAP) return;
+
+  int wwidth = attribs.width > 0 ? attribs.width : 400;
+  int wheight = attribs.height > 0 ? attribs.height : 300;
+
+  int window_x = attribs.x;
+  int window_y = attribs.y;
+  if(wm.currentLayout == WINDOW_LAYOUT_FLOATING){
+    window_x = (wm.screenWidth - wwidth) / 2;
+    window_y = (wm.screenHeight - wheight) / 2;
+  }
+
+  Window winFrame = XCreateSimpleWindow(
+    wm.display,
+    wm.root,
+    window_x,
+    window_y,
+    wwidth,
+    wheight,
+    BORDER_WIDTH,
+    BORDER_COLOR,
+    BG_COLOR
+  );
+
+  XSelectInput(wm.display, win,
+               StructureNotifyMask | PropertyChangeMask | EnterWindowMask | 
+               FocusChangeMask | KeyPressMask | ButtonPressMask | ButtonReleaseMask);
+
+  XReparentWindow(wm.display, win, winFrame, 0, 0);
+
+  XSelectInput(wm.display, winFrame,
+               SubstructureRedirectMask | SubstructureNotifyMask | StructureNotifyMask |
+               ExposureMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask);
+
+  XAddToSaveSet(wm.display, win);
+
+  XResizeWindow(wm.display, win, wwidth, wheight);
+
+  memset(&wm.client_windows[wm.clients_count], 0, sizeof(Client));
+  Client *c = &wm.client_windows[wm.clients_count];
+  c->frame = winFrame;
+  c->win = win;
+  c->fullscreen = false;
+  c->desktopIndex = wm.currentDesktop;
+  c->forceManage = (has_transient || isDialogLike);
+  c->inLayout = isLayoutTiling(wm.currentLayout) && !c->forceManage;
+
+  wm.clients_count++;
+
+  XGrabButton(wm.display, Button1, MOD, win, False,
+              ButtonPressMask | ButtonReleaseMask | ButtonMotionMask,
+              GrabModeAsync, GrabModeAsync, None, None);
+  XGrabButton(wm.display, Button3, MOD, win, False,
+              ButtonPressMask | ButtonReleaseMask | ButtonMotionMask,
+              GrabModeAsync, GrabModeAsync, None, None);
+
+  XSync(wm.display, False);
+}
 
 void xwmWindowUnframe(Window w){
+  int32_t idx = getClientIndex(w);
+
+  if(idx != -1){
+    if(wm.client_windows[idx].frame == w){
+      w = wm.client_windows[idx].win;
+    }
+  }
+
   if(!clientWindowExists(w)) return;
 
   int32_t clientIndex = getClientIndex(w);
@@ -875,17 +1070,14 @@ void xwmWindowUnframe(Window w){
   XReparentWindow(wm.display, w, wm.root, 0, 0);
   XRemoveFromSaveSet(wm.display, w);
   XDestroyWindow(wm.display, frameWin);
-  
+
   for(uint32_t j = clientIndex; j < wm.clients_count - 1; j++){
     wm.client_windows[j] = wm.client_windows[j+1];
   }
-  
-  //memset(&wm.client_windows[wm.clients_count -1], 0, sizeof(Client));
   wm.clients_count--;
 
   retileLayout();
 }
-
 
 int32_t getClientIndex(Window w){
   for(uint32_t i = 0; i < wm.clients_count; i++){
@@ -917,7 +1109,7 @@ void setFullscreen(Window w){
                     screenWidth,
                     screenHeight);
   XResizeWindow(wm.display, w, screenWidth, screenHeight);
-  hideBar();
+  //hideBar();
 }
 
 void unsetFullscreen(Window w){
@@ -937,6 +1129,7 @@ void unsetFullscreen(Window w){
   
   XMoveResizeWindow(wm.display, frame, centerX, centerY, windowWidth, windowHeight);
   XResizeWindow(wm.display, w, windowWidth, windowHeight);
+
   unhideBar();
   retileLayout();
 }
@@ -1374,62 +1567,85 @@ void retileLayout(){
   } 
 }
 
-void xwmWindowFrame(Window win, bool createdBeforeWindowManager){
-  XWindowAttributes attribs;
+void applyRules(Client *c){
+  if(!c) return;
 
-  assert(XGetWindowAttributes(wm.display, win, &attribs) && "failed to get window attributes");
+  c->inLayout = isLayoutTiling(wm.currentLayout);
+  c->forceManage = false;
 
-  if(createdBeforeWindowManager){
-    if(attribs.override_redirect || attribs.map_state != IsViewable){
-      return; // ignore
+  XClassHint ch = {0};
+  if(XGetClassHint(wm.display, c->win, &ch)){
+    if(ch.res_name){
+      if(strcmp(ch.res_name, "dialog") == 0 || strcmp(ch.res_name, "confirm") == 0){
+        c->inLayout = false;
+        c->forceManage = true;
+      }
     }
+    if(ch.res_class){
+      if(strcmp(ch.res_class, "Xmessage") == 0 || strcmp(ch.res_class, "Pavucontol") == 0){
+        c->inLayout = false;
+        c->forceManage = true;
+      }
+    }
+    if(ch.res_name)  XFree(ch.res_name);
+    if(ch.res_class) XFree(ch.res_class);
   }
 
-  int window_x = attribs.x;
-  int window_y = attribs.y;
+  Window transientFor = None;
+  if(XGetTransientForHint(wm.display, c->win, &transientFor) && transientFor != None){
+    c->inLayout = false;
+    c->forceManage = true;
+  }
+
+  Atom actualType;
+  int actualFormat;
+  unsigned long nitems, bytes_after;
+  unsigned char *prop = NULL;
+
+  Atom aTypeNet =     XInternAtom(wm.display, "_NET_WM_WINDOW_TYPE", false);
+  Atom aTypeDialog =  XInternAtom(wm.display, "_NET_WM_WINDOW_TYPE_DIALOG", false);
+  Atom aTypeUtility = XInternAtom(wm.display, "_NET_WM_WINDOW_TYPE_UTILITY", false);
+  Atom aTypeSplash =  XInternAtom(wm.display, "_NET_WM_WINDOW_TYPE_SPLASH", false);
+
+  if(XGetWindowProperty(wm.display, c->win, aTypeNet, 0, (~0L), false, AnyPropertyType, &actualType, &actualFormat, &nitems, &bytes_after, &prop) == Success && prop){
+    Atom *atoms = (Atom*)prop;
+    for(unsigned long i = 0; i < nitems; ++i){
+      if(atoms[i] == aTypeDialog || atoms[i] == aTypeUtility || atoms[i] == aTypeSplash){
+        c->inLayout = false;
+        c->forceManage = true;
+        break;
+      }
+    }
+    XFree(prop);
+    prop = NULL;
+  }
   
-  if(wm.currentLayout == WINDOW_LAYOUT_FLOATING){
-    window_x = (wm.screenWidth - attribs.width) / 2;
-    window_y = (wm.screenHeight - attribs.height) / 2;
+  Atom aStateNet = XInternAtom(wm.display, "_NET_WM_STATE", false);
+  Atom aStateFs =  XInternAtom(wm.display, "_NET_WM_STATE_FULLSCREEN", false);
+  if(XGetWindowProperty(wm.display, c->win, aStateNet, 0, (~0L), false, AnyPropertyType, &actualType, &actualFormat, &nitems, &bytes_after, &prop) == Success && prop){
+    Atom *states = (Atom*)prop;
+    for(unsigned long i = 0; i < nitems; ++i){
+      if(states[i] == aStateFs){
+        c->fullscreen = true;
+        break;
+      }
+    }
+    XFree(prop);
+    prop = NULL;
   }
+  
+  if(wm.currentLayout == WINDOW_LAYOUT_FLOATING) c->inLayout = false;
+}
 
-
-  Window winFrame = XCreateSimpleWindow(
-    wm.display,
-    wm.root,
-    window_x,
-    window_y,
-    attribs.width,
-    attribs.height,
-    BORDER_WIDTH,
-    BORDER_COLOR,
-    BG_COLOR
-  );
-
-  XReparentWindow(wm.display, win, winFrame, 0, 0);
-
-  XSelectInput(
-    wm.display,
-    winFrame,
-    SubstructureRedirectMask |
-    SubstructureNotifyMask
-  );
-
-  XAddToSaveSet(wm.display, win);
-  XResizeWindow(wm.display, win, attribs.width, attribs.height);
-  XMapWindow(wm.display, winFrame);
-
-  memset(&wm.client_windows[wm.clients_count], 0, sizeof(Client));
-  wm.client_windows[wm.clients_count].frame = winFrame;
-  wm.client_windows[wm.clients_count].win = win;
-  wm.client_windows[wm.clients_count].inLayout = (wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER);
-  wm.client_windows[wm.clients_count].fullscreen = false;
-  wm.client_windows[wm.clients_count].desktopIndex = wm.currentDesktop; 
-  wm.clients_count++;
-
-  XGrabButton(wm.display, Button1, MOD, win, false, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, None);
-  XGrabButton(wm.display, Button3, MOD, win, false, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, None);
-  retileLayout();
+bool isLayoutTiling(WindowLayout layout){
+  switch(layout){
+    case WINDOW_LAYOUT_TILED_MASTER:
+      return true;
+    case WINDOW_LAYOUT_FLOATING:
+      return false;
+    default:
+      return true;
+  }
 }
 
 int main(void){
@@ -1437,3 +1653,5 @@ int main(void){
   xwm_run();
   return 0;
 }
+
+

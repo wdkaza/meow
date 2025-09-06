@@ -1,7 +1,6 @@
 #pragma once
 #include "structs.h"
 
-
 #define MONITOR_WIDTH 1920
 #define MONITOR_HEIGHT 1080
 
@@ -115,11 +114,7 @@ struct KeyEvent keys[] = {
 #define BAR_FONT "JetBrains Mono Nerd Font:size11:style=bold"
 #define BAR_FONT_SIZE 30
 #define BAR_FONT_COLOR "#f8f8f8"
-#define DESKTOP_HIGHLIGHT_COLOR "#f8f8f8" // useless, keep it the same as BAR_FONT_COLOR if this will not be removed
 #define BAR_BORDER_WIDTH 1
-
-#define BAR_PADDING_X 0
-#define BAR_PADDING_Y 0
 
 #define BAR_TRUE_CENTER true // wont account for left/rigth segmenents and will put it(segment) exactly in themiddle
 

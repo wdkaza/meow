@@ -1,10 +1,9 @@
-# Meow
+# meow
 A very lightweight and minimal X window manager made in C, insipired by i3, dwm and ragnarWM.<br>
 Minimal, no desktop bloat, no unnecessary features. Just clean.<br><br><br>
 ![preview1](screenshots/2025-09-02-193404_1920x1080_scrot.png)<br>
 ![preview3](screenshots/2025-08-12-014816_1920x1080_scrot.png)<br>
 ![preview4](screenshots/2025-08-13-164111_1920x1080_scrot.png)<br>
-![preview2](screenshots/2025-09-02-001642_1920x1080_scrot.png)<br>
 ![preview5](screenshots/2025-08-06-214317_1920x1080_scrot.png)<br>
 <br><br><br>
 ## Features<br>
@@ -29,7 +28,7 @@ But if you'd like to see this project get finished someday give it a star and i 
 
 I want to mention github.com/cococry/ragnar as ragnar's old code helped me understand alot of things,<br>
 Make sure to check it out aswell!<br><br>
-
+(but if you are really curious, you can run it with "startx ./meow", will provide a detailed guide a bit later when im sure meow is stable)
 ## Bugs
 
 - [ ] Launching firefox(maybe any window) has a small chance to spawn a 0,0 ignoring the wm(temp fix : force quit with ctrl+q and it only happends on startup for me sometimes)
@@ -37,4 +36,5 @@ Make sure to check it out aswell!<br><br>
 - [ ] Anything related to EMWH may not work since its not supported yet
 - [ ] Opening a sub window? maybe thats what its called of a window, example in discord [add file] will not map it(thunar) correctly for some reason
 - [ ] Fullscreening should probably unmap other windows, looks weird with transparancy
+- [ ] Bar is ofset sligthly to the left by a few pixels
 - [ ] TODO. Will be adding more bugs that i encounter later, should have started keeping track of that earlier
