@@ -55,25 +55,6 @@ typedef struct {
 } Client;
 
 typedef struct {
-  int value;
-  time_t lastUpdate;
-  bool needsUpdate;
-  bool valid;
-} BarModuleData;
-
-typedef struct {
-  Window win;
-  bool hidden;
-  char barText[256];
-  XftFont *font;
-  XftColor color;
-  XftDraw* draw;
-
-  BarModuleData modules[BAR_SEGMENTS_COUNT];
-  time_t lastTimeUpdate;
-} Bar;
-
-typedef struct {
   Display* display;
   Window root;
 
@@ -93,8 +74,6 @@ typedef struct {
 
   int screenHeight;
   int screenWidth;
-
-  Bar bar;
 
   Atom ATOM_WM_DELETE_WINDOW;
   Atom ATOM_WM_PROTOCOLS;
@@ -127,12 +106,6 @@ static void initDesktops();
 static void setFullscreen(Window w);
 static Atom* findAtomPtrRange(Atom* ptr1, Atom* ptr2, Atom val);
 static bool desktopHasWindows(int desktop);
-static void initBar();
-static void updateBar();
-static void initBarModules();
-static void hideBar();
-static void forceModuleUpdate(const char* moduleName);
-static void unhideBar();
 static void dwm_updateNumlockMask();
 static void dwm_grabKeys(void);
 static XWM xwm_init();
@@ -164,57 +137,6 @@ void initDesktops(){
 }
 
 
-void initBar(){
-  wm.bar.hidden = false;
-
-  XVisualInfo vinfo;
-  XMatchVisualInfo(wm.display, DefaultScreen(wm.display), 32, TrueColor, &vinfo);
-
-  XSetWindowAttributes attrs;
-  attrs.colormap = XCreateColormap(wm.display, wm.root, vinfo.visual, AllocNone);
-  attrs.border_pixel = 0;
-  attrs.background_pixel = 0;
-
-  wm.bar.win = XCreateWindow(
-               wm.display,
-               wm.root,
-               0, 0,
-               wm.screenWidth - (2 * BORDER_WIDTH), BAR_HEIGHT,
-               0,             
-               vinfo.depth, 
-               InputOutput,
-               vinfo.visual,
-               CWColormap | CWBorderPixel | CWBackPixel,
-               &attrs
-  );
-
-  wm.bar.draw = XftDrawCreate(wm.display,
-                              wm.bar.win,
-                              vinfo.visual,
-                              attrs.colormap);
-
-  wm.bar.font = XftFontOpenName(wm.display, DefaultScreen(wm.display), BAR_FONT);
-
-  XftColorAllocName(
-        wm.display,
-        vinfo.visual,
-        attrs.colormap,
-        BAR_FONT_COLOR,
-        &wm.bar.color);
-
-  initBarModules();
-
-  XClassHint classHint;
-  classHint.res_name = "meowbar";
-  classHint.res_class = "MeowBar";
-
-  XSetClassHint(wm.display, wm.bar.win, &classHint);
-
-  XSelectInput(wm.display, wm.bar.win, SubstructureRedirectMask | SubstructureNotifyMask);
-  XMapWindow(wm.display, wm.bar.win);
-  XRaiseWindow(wm.display, wm.bar.win);
-}
-
 XWM xwm_init(){
   XWM wm = {0};
   XSetErrorHandler(xwm_error_handler);
@@ -238,6 +160,24 @@ XWM xwm_init(){
   XChangeWindowAttributes(wm.display, wm.root, CWBackingStore, &attrs);
   XSetCloseDownMode(wm.display, RetainPermanent);
   XSync(wm.display, false);
+
+  Window wmWin = XCreateSimpleWindow(
+    wm.display,
+    wm.root,
+    0,0,1,1,0,
+    BlackPixel(wm.display, screen),
+    BlackPixel(wm.display, screen)
+  );
+
+  Atom netSupportingWmCheck = XInternAtom(wm.display, "_NET_SUPPORTING_WM_CHECK", false);
+  Atom netWmName =            XInternAtom(wm.display, "_NET_WM_NAME", false);
+  Atom utf8Str =              XInternAtom(wm.display, "UTF8_STRING", false);
+
+  XChangeProperty(wm.display, wm.root, netSupportingWmCheck, XA_WINDOW, 32, PropModeReplace, (unsigned char *)&wmWin, 1);
+  XChangeProperty(wm.display, wmWin, netSupportingWmCheck, XA_WINDOW, 32, PropModeReplace, (unsigned char *)&wmWin, 1);
+
+  char *wmName = "meow";
+  XChangeProperty(wm.display, wmWin, netWmName, utf8Str, 8, PropModeReplace, (unsigned char *)wmName, strlen(wmName));
 
   return wm;
 }
@@ -308,29 +248,28 @@ void xwm_run(){
   wm.ATOM_WM_PROTOCOLS = XInternAtom(wm.display, "WM_PROTOCOLS", false);
   wm.ATOM_WM_DELETE_WINDOW = XInternAtom(wm.display, "WM_DELETE_WINDOW", false);
 
-  initBar();
   initDesktops();
 
   int xfd = XConnectionNumber(wm.display);
   fd_set readFds;
   struct timeval timeout;
-  time_t lastBarUpdate = 0;
-  bool barNeedsUpdate = true;
+  time_t lastUpdate = 0;
+  bool needsUpdate = true;
 
   while(wm.running){
     FD_ZERO(&readFds);
     FD_SET(xfd, &readFds);
-    
-    time_t currentTime = time(NULL);
-    time_t TimeSinceLastUpdate = currentTime - lastBarUpdate;
 
-    if(TimeSinceLastUpdate >= BAR_REFRESH_TIME){
+    time_t currentTime = time(NULL);
+    time_t timeSinceLastUpdate = currentTime - lastUpdate;
+
+    if(timeSinceLastUpdate >= REFRESH_TIME){
       timeout.tv_sec = 0;
       timeout.tv_usec = 100000;
-      barNeedsUpdate = true;
+      needsUpdate = true;
     }
     else{
-      timeout.tv_sec = BAR_REFRESH_TIME - TimeSinceLastUpdate;
+      timeout.tv_sec = REFRESH_TIME - timeSinceLastUpdate;
       timeout.tv_usec = 0;
     }
 
@@ -347,15 +286,15 @@ void xwm_run(){
           break;
         case MapRequest:
           handleMapRequest(&ev);
-          barNeedsUpdate = true;
+          needsUpdate = true;
           break;
         case UnmapNotify:
           handleUnmapNotify(&ev);
-          barNeedsUpdate = true;
+          needsUpdate = true;
           break;
         case DestroyNotify:
           handleDestroyNotify(&ev);
-          barNeedsUpdate = true;
+          needsUpdate = true;
           break;
         case ConfigureNotify:
           handleConfigureNotify(&ev);
@@ -371,17 +310,16 @@ void xwm_run(){
           break;
         case KeyPress:
           handleKeyPress(&ev);
-          barNeedsUpdate = true;
+          needsUpdate = true;
           break;
         case KeyRelease:
           handleKeyRelease(&ev);
           break;
       }
     }
-    if(barNeedsUpdate || ready == 0){ 
-      updateBar();
-      barNeedsUpdate = false;
-      lastBarUpdate = time(NULL);
+    if(needsUpdate || ready == 0){
+      needsUpdate = false;
+      lastUpdate = time(NULL);
     }
   }
 }
@@ -609,42 +547,36 @@ void increaseVolume(Arg *arg){
   (void)arg;
 
   system(VOLUME_UP_CMD);
-  forceModuleUpdate("volume");
 }
 
 void decreaseVolume(Arg *arg){
   (void)arg;
   
   system(VOLUME_DOWN_CMD);
-  forceModuleUpdate("volume");
 }
 
 void muteVolume(Arg *arg){
   (void)arg;
 
   system(VOLUME_MUTE_CMD);
-  forceModuleUpdate("volume");
 }
 
 void increaseBrightness(Arg *arg){
   (void)arg;
 
   system(BRIGHTNESS_UP_CMD);
-  forceModuleUpdate("brightness");
 }
 
 void decreaseBrightness(Arg *arg){
   (void)arg;
 
   system(BRIGHTNESS_DOWN_CMD);
-  forceModuleUpdate("brightness");
 }
 
 void minBrightness(Arg *arg){
   (void)arg;
 
   system(BRIGHTNESS_MIN_CMD);
-  forceModuleUpdate("brightness");
 }
 
 void increaseGapSize(Arg *arg){
@@ -718,19 +650,6 @@ void fullscreen(Arg *arg){
   }
 }
 
-void enableBar(Arg *arg){
-  (void)arg;
-
-  unhideBar();
-}
-
-void disableBar(Arg *arg){
-  (void)arg;
-
-  hideBar();
-  retileLayout();
-}
-
 void cycleWindows(Arg *arg){
   (void)arg;
   Window focusedWindow = wm.focused_Window;
@@ -795,11 +714,10 @@ void manageFloatingWindow(Client *c){
   unsigned int ww = (unsigned int)attr.width;
   unsigned int wh = (unsigned int)attr.height;
 
-  int availableHeight = wm.screenHeight - (wm.bar.hidden ? 0 : BAR_HEIGHT);
-  int topOffset = wm.bar.hidden ? 0 : BAR_HEIGHT;
+  int availableHeight = wm.screenHeight; // TODO
 
   int centerX = (wm.screenWidth - (int)ww) / 2;
-  int centerY = topOffset + (availableHeight - (int)wh) / 2;
+  int centerY = (availableHeight - (int)wh) / 2;
 
   centerX -= BORDER_WIDTH;
   centerY -= BORDER_WIDTH;
@@ -865,8 +783,6 @@ void handleMapRequest(XEvent *ev){
 
 void handleUnmapNotify(XEvent *ev){
   XUnmapEvent *e = &ev->xunmap;
-
-  if(e->window == wm.bar.win) return;
 
   if(clientFrameExists(e->window)){
     return;
@@ -1109,7 +1025,6 @@ void setFullscreen(Window w){
                     screenWidth,
                     screenHeight);
   XResizeWindow(wm.display, w, screenWidth, screenHeight);
-  //hideBar();
 }
 
 void unsetFullscreen(Window w){
@@ -1130,280 +1045,7 @@ void unsetFullscreen(Window w){
   XMoveResizeWindow(wm.display, frame, centerX, centerY, windowWidth, windowHeight);
   XResizeWindow(wm.display, w, windowWidth, windowHeight);
 
-  unhideBar();
   retileLayout();
-}
-
-void hideBar(){
-  if(wm.bar.hidden) return;
-  XUnmapWindow(wm.display, wm.bar.win);
-  wm.bar.hidden = true;
-  //retileLayout();
-}
-
-void unhideBar(){
-  if(!wm.bar.hidden) return;
-  XMapWindow(wm.display, wm.bar.win);
-  wm.bar.hidden = false;
-  updateBar();
-  retileLayout();
-}
-
-int executeCommand(const char *command){
-  if(!command || strlen(command) == 0) return -1;
-
-  FILE *fp = popen(command, "r");
-  if(!fp) return -1;
-
-  char buffer[256];
-  int result = -1;
-
-  if(fgets(buffer, sizeof(buffer), fp) != NULL){
-    buffer[strcspn(buffer, "\n")] = 0;
-    result = atoi(buffer);
-  }
-  
-  pclose(fp);
-  return result;
-}
-
-bool updateBarModule(int moduleIndex){
-  if(moduleIndex >= BAR_SEGMENTS_COUNT || !BarSegments[moduleIndex].enabled){
-    return false;
-  }
-  
-  time_t currentTime = time(NULL);
-  BarModuleData *module = &wm.bar.modules[moduleIndex];
-
-  if(module->needsUpdate || !module->valid || (currentTime - module->lastUpdate) >= BAR_REFRESH_TIME){
-    int newValue = executeCommand(BarSegments[moduleIndex].command);
-    if(newValue >= 0){
-      module->value = newValue;
-      module->lastUpdate = currentTime;
-      module->needsUpdate = false;
-      module->valid = true;
-      return true;
-    }
-    else{
-      module->needsUpdate = false;
-      return module->valid;
-    }
-  }
-
-  return module->valid;
-}
-
-void forceModuleUpdate(const char* moduleName){
-  for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
-    if(strcmp(BarSegments[i].name, moduleName) == 0){
-      wm.bar.modules[i].needsUpdate = true;
-      break;
-    }
-  }
-}
-
-void initBarModules(){
-  for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
-    wm.bar.modules[i].value = 0;
-    wm.bar.modules[i].lastUpdate = 0;
-    wm.bar.modules[i].needsUpdate = true;
-    wm.bar.modules[i].valid = false;
-  }
-  wm.bar.lastTimeUpdate = 0;
-}
-
-void generateDesktopString(char *buffer, size_t bufferSize){
-  buffer[0] = '\0';
-  bool first = true;
-  
-  for(int i = 0; i < DESKTOP_COUNT; i++){
-    if(desktopHasWindows(i)){
-      if(!first){
-        strncat(buffer, "-", bufferSize - strlen(buffer) - 1);
-      }
-      
-      char tmp[8];
-      if(i == wm.currentDesktop){
-        snprintf(tmp, sizeof(tmp), "[%d]", i);
-      }else{
-        snprintf(tmp, sizeof(tmp), "%d", i);
-      }
-      strncat(buffer, tmp, bufferSize - strlen(buffer) - 1);
-      first = false;
-    }
-  }
-  
-  if(strlen(buffer) == 0){
-    snprintf(buffer, bufferSize, "[%d]", wm.currentDesktop);
-  }
-}
-
-int getTextWidth(const char *text){
-  if (!text || strlen(text) == 0) return 0;
-  
-  XGlyphInfo extents;
-  XftTextExtentsUtf8(wm.display, wm.bar.font, (XftChar8*)text, strlen(text), &extents);
-  return extents.xOff;
-}
-
-void drawTextAt(int x, int y, const char *text){
-  if(!text || strlen(text) == 0) return;
-  
-  XftDrawStringUtf8(wm.bar.draw, &wm.bar.color, wm.bar.font, x, y, (XftChar8*)text, strlen(text));
-}
-
-void drawBar(){
-  if(wm.bar.hidden) return;
-  
-  XClearWindow(wm.display, wm.bar.win);
-  
-  XWindowAttributes attrs;
-  XGetWindowAttributes(wm.display, wm.bar.win, &attrs);
-  
-  int baseline = (attrs.height + wm.bar.font->ascent - wm.bar.font->descent) / 2;
-  
-  char segmentTexts[BAR_SEGMENTS_COUNT][256];
-  int segmentWidths[BAR_SEGMENTS_COUNT];
-  bool segmentValid[BAR_SEGMENTS_COUNT];
-  
-  for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
-    segmentTexts[i][0] = '\0';
-    segmentWidths[i] = 0;
-    segmentValid[i] = false;
-    
-    if(!BarSegments[i].enabled) continue;
-    
-    if(strcmp(BarSegments[i].name, "desktop") == 0){
-      char desktopStr[128];
-      generateDesktopString(desktopStr, sizeof(desktopStr));
-      snprintf(segmentTexts[i], sizeof(segmentTexts[i]), BarSegments[i].format, desktopStr);
-      segmentValid[i] = true;
-    }
-    else if(strcmp(BarSegments[i].name, "string") == 0){
-      char stringStr[64];
-      FILE *fp = popen(BarSegments[i].command, "r");
-      if(fp){
-        if(fgets(stringStr, sizeof(stringStr), fp) != NULL){
-          stringStr[strcspn(stringStr, "\n")] = 0;
-          snprintf(segmentTexts[i], sizeof(segmentTexts[i]), BarSegments[i].format, stringStr);
-          segmentValid[i] = true;
-        }
-        pclose(fp);
-      }
-    }
-    else if (wm.bar.modules[i].valid){
-      snprintf(segmentTexts[i], sizeof(segmentTexts[i]), BarSegments[i].format, wm.bar.modules[i].value);
-      segmentValid[i] = true;
-    }
-    
-    if(segmentValid[i]){
-      segmentWidths[i] = getTextWidth(segmentTexts[i]);
-    }
-  }
-  
-  
-  int leftX = BAR_MODULE_PADDING;
-  for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
-    if(segmentValid[i] && BarSegments[i].position == SEGMENT_LEFT){
-      drawTextAt(leftX, baseline, segmentTexts[i]);
-      leftX += segmentWidths[i] + BAR_SEGMENTS_COUNT;
-    }
-  }
-  
-  int totalRightWidth = 0;
-  int rightCount = 0;
-  
-  for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
-    if(segmentValid[i] && BarSegments[i].position == SEGMENT_RIGHT){
-      totalRightWidth += segmentWidths[i];
-      if(rightCount > 0) totalRightWidth += BAR_SEGMENTS_COUNT;
-      rightCount++;
-    }
-  }
-  
-  int rightX = attrs.width - BAR_MODULE_PADDING - totalRightWidth;
-  for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
-    if(segmentValid[i] && BarSegments[i].position == SEGMENT_RIGHT){
-      drawTextAt(rightX, baseline, segmentTexts[i]);
-      rightX += segmentWidths[i] + BAR_SEGMENTS_COUNT;
-    }
-  }
-  
-  int totalCenterWidth = 0;
-  int centerCount = 0;
-  
-  for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
-    if(segmentValid[i] && BarSegments[i].position == SEGMENT_CENTER){
-      totalCenterWidth += segmentWidths[i];
-      if (centerCount > 0) totalCenterWidth += BAR_SEGMENTS_COUNT;
-      centerCount++;
-    }
-  }
-  if(BAR_TRUE_CENTER){
-    int availableCenterSpace = attrs.width - (BAR_SEGMENTS_COUNT * 2);
-    int centerStartX = (attrs.width - totalCenterWidth) / 2;
-
-    if(totalCenterWidth <= availableCenterSpace){
-      for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
-        if(segmentValid[i] && BarSegments[i].position == SEGMENT_CENTER){
-          drawTextAt(centerStartX, baseline, segmentTexts[i]);
-          centerStartX += segmentWidths[i] + BAR_MODULE_PADDING;
-        }
-      }
-    }
-    else{
-      int fallbackX = BAR_SEGMENTS_COUNT;
-      for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
-        if(segmentValid[i] && BarSegments[i].position == SEGMENT_CENTER){
-          if(fallbackX + segmentWidths[i] < attrs.width - BAR_SEGMENTS_COUNT){
-            drawTextAt(fallbackX, baseline, segmentTexts[i]);
-            fallbackX += segmentWidths[i] + BAR_SEGMENTS_COUNT;
-          }
-        }
-      }
-    }
-  }
-  else if(!BAR_TRUE_CENTER){
-    int leftBoundary = leftX;
-    int rightBoundary = attrs.width - BAR_MODULE_PADDING - totalRightWidth - BAR_SEGMENTS_COUNT;
-    int availableCenterSpace = rightBoundary - leftBoundary;
-    
-    if(totalCenterWidth <= availableCenterSpace){
-      int centerStartX = leftBoundary + (availableCenterSpace - totalCenterWidth) / 2;
-      
-      for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
-        if(segmentValid[i] && BarSegments[i].position == SEGMENT_CENTER){
-          drawTextAt(centerStartX, baseline, segmentTexts[i]);
-          centerStartX += segmentWidths[i] + BAR_SEGMENTS_COUNT;
-        }
-      }
-    } 
-    else{
-      int fallbackX = leftBoundary + BAR_SEGMENTS_COUNT;
-      for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
-        if(segmentValid[i] && BarSegments[i].position == SEGMENT_CENTER){
-          if(fallbackX + segmentWidths[i] < rightBoundary){
-            drawTextAt(fallbackX, baseline, segmentTexts[i]);
-            fallbackX += segmentWidths[i] + BAR_SEGMENTS_COUNT;
-          }
-        }
-      }
-    }
-  }
-
-  
-  XFlush(wm.display);
-}
-
-void updateBar(){
-  if(wm.bar.hidden) return;
-
-  for(int i = 0; i < BAR_SEGMENTS_COUNT; i++){
-    if(BarSegments[i].enabled && strcmp(BarSegments[i].name, "desktop") != 0){
-      updateBarModule(i);
-    }
-  }
-  drawBar();
 }
 
 bool desktopHasWindows(int desktop){
@@ -1516,8 +1158,8 @@ void retileLayout(){
   }
   if(client_count == 0) return;
 
-  int availableHeight = wm.screenHeight - (wm.bar.hidden ? 0 : BAR_HEIGHT);
-  int startY = wm.bar.hidden ? 0 : BAR_HEIGHT;
+  int availableHeight = wm.screenHeight; //TODO
+  int startY = 0; //TODO
 
   if(wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER){
 
@@ -1550,8 +1192,7 @@ void retileLayout(){
     for(uint32_t i = 1; i < client_count; i++){
       Client *client = clients[i]; 
       int32_t stackY = wm.windowGap + (i - 1) * (stackFrameHeight + wm.windowGap);
-      int barOffset = wm.bar.hidden ? 0 : BAR_HEIGHT;
-      XMoveWindow(wm.display, client->frame, stackX - BORDER_WIDTH, stackY + barOffset - BORDER_WIDTH);
+      XMoveWindow(wm.display, client->frame, stackX - BORDER_WIDTH, stackY - BORDER_WIDTH);
       XResizeWindow(wm.display, client->frame, stackFrameWidth, stackFrameHeight);
       XResizeWindow(wm.display, client->win, stackFrameWidth, stackFrameHeight);
       XSetWindowBorderWidth(wm.display, client->frame, BORDER_WIDTH);

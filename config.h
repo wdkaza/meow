@@ -1,9 +1,6 @@
 #pragma once
 #include "structs.h"
 
-#define MONITOR_WIDTH 1920
-#define MONITOR_HEIGHT 1080
-
 #define START_WINDOW_GAP 20
 #define DESKTOP_COUNT 10
 #define BORDER_WIDTH 1
@@ -12,7 +9,6 @@
 #define BORDER_FOCUSED_COLOR 0xADD8E6
 
 #define BG_COLOR 0x000000
-#define BAR_REFRESH_TIME 1 // in seconds
 
 #define MOD Mod1Mask // alt by default
 
@@ -31,8 +27,6 @@ static char *screenshot[] = {"scrot", NULL};
 // addToLayout
 // moveWindowUp           (inLayout)
 // moveWindowDown         (inLayout)
-// disableBar     
-// enableBar     
 // increaseVolume
 // decreaseVolume
 // muteVolume
@@ -66,8 +60,6 @@ struct KeyEvent keys[] = {
   {MOD, XK_space,  addWindowToLayout,       {0}},
   {MOD, XK_Up,     moveWindowUp,            {0}},
   {MOD, XK_Down,   moveWindowDown,          {0}},
-  {MOD, XK_n,      enableBar,               {0}},
-  {MOD, XK_m,      disableBar,              {0}},
   {MOD, XK_F3,     increaseVolume,          {0}},
   {MOD, XK_F2,     decreaseVolume,          {0}},
   {MOD, XK_F1,     muteVolume,              {0}},
@@ -91,7 +83,7 @@ struct KeyEvent keys[] = {
   {MOD, XK_7,      switchDesktop,           {.i = 7}},
   {MOD, XK_8,      switchDesktop,           {.i = 8}},
   {MOD, XK_9,      switchDesktop,           {.i = 9}},
-  // 0 might be bugged visually with the current bar
+  {MOD, XK_0,      switchDesktop,           {.i = 0}},
 
   {MOD|ShiftMask, XK_1, transferWindowToDesktop, {.i = 1}},
   {MOD|ShiftMask, XK_2, transferWindowToDesktop, {.i = 2}},
@@ -102,68 +94,10 @@ struct KeyEvent keys[] = {
   {MOD|ShiftMask, XK_7, transferWindowToDesktop, {.i = 7}},
   {MOD|ShiftMask, XK_8, transferWindowToDesktop, {.i = 8}},
   {MOD|ShiftMask, XK_9, transferWindowToDesktop, {.i = 9}},
-  // 0 might be bugged visually with the current bar
+  {MOD|ShiftMask, XK_0, transferWindowToDesktop, {.i = 0}}
 };
 
 
+// you probably shouldnt touch these, those are to avoid magic numbers
 
-
-#define BAR_HEIGHT 30
-
-#define BAR_COLOR 0xffffff
-#define BAR_FONT "JetBrains Mono Nerd Font:size11:style=bold"
-#define BAR_FONT_SIZE 30
-#define BAR_FONT_COLOR "#f8f8f8"
-#define BAR_BORDER_WIDTH 1
-
-#define BAR_TRUE_CENTER true // wont account for left/rigth segmenents and will put it(segment) exactly in themiddle
-
-#define BAR_MODULE_PADDING 20 // padding from the sides of the bar
-#define BAR_SEGMENT_SPACING 30 // padding between modules
-
-
-
-// format:
-// .name = 
-// .command = 
-// .format = 
-// .enabled = (isnt enabled useless?? whatever) 
-
-#define BAR_SEGMENTS_COUNT 5
-
-static const BarModuleConfig BarSegments[BAR_SEGMENTS_COUNT] = {
-  {
-    .name = "volume",
-    .command = "pactl get-sink-volume @DEFAULT_SINK@ | grep -o '[0-9]*%' | head -1 | tr -d '%'",
-    .format = "VOL: %d%% >",
-    .position = SEGMENT_RIGHT,
-    .enabled = true
-  },
-  {
-    .name = "brightness",
-    .command = "brightnessctl get | awk -v max=$(brightnessctl max) '{print int($1*100/max)}'",
-    .format = "BRT: %d%% >",
-    .position = SEGMENT_RIGHT,
-    .enabled = true
-  },
-  {
-    .name = "battery",
-    .command = "cat /sys/class/power_supply/BAT0/capacity 2>/dev/null || echo 0",
-    .format = "BAT: %d%%",
-    .position = SEGMENT_RIGHT,
-    .enabled = true
-  },
-  {
-    .name = "string", //string too heavy and causes a small bug, will try to fix it later
-    .command = "date +%H:%M:%S",
-    .format = "%s",
-    .position = SEGMENT_CENTER,
-    .enabled = true
-  },
-  {
-    .name = "desktop",
-    .format = "%s",
-    .position = SEGMENT_LEFT,
-    .enabled = true
-  }
-};
+#define REFRESH_TIME 1

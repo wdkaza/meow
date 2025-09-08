@@ -13,17 +13,20 @@ So far meow has support for:<br>
 - [x] Window borders<br>
 - [x] Gaps between windows in a layout<br>
 - [x] Better config
-- [x] Built in bar(100% will get reworked or improved heavily, next(or maybe fuck the bar and EMWH support next, not sure, would be easier to allow other bars))<br>
+- [ ] Support for other bars(example polybar, etc), (HIGHEST PRIORITY)
+- [ ] Cleaner readme
 - [ ] EWMH support
 - [ ] Hover to select windows<br>
 - [ ] Multiple monitors<br><br><br><br>
+
+built in bar was scraped due to complexity being the same as window manager to make a good one
+also it was coded very very poorly lol
 
 ## Instalation
 <br>
 
 ⚠️It still has alot of bugs i would like to fix them before providing a way to install it⚠️<br>
 For example if you close all windows on any desktop that is not "0" you will just lose control of the WM<br>
-its an easy fix but there are alot of bugs i would like to fix and i want to add atleast a customizable bar before releasing meow<br>
 But if you'd like to see this project get finished someday give it a star and i will try my best to finish it⭐
 
 I want to mention github.com/cococry/ragnar as ragnar's old code helped me understand alot of things,<br>
@@ -31,10 +34,11 @@ Make sure to check it out aswell!<br><br>
 (but if you are really curious, you can run it with "startx ./meow", will provide a detailed guide a bit later when im sure meow is stable)
 ## Bugs
 
-- [ ] Launching firefox(maybe any window) has a small chance to spawn a 0,0 ignoring the wm(temp fix : force quit with ctrl+q and it only happends on startup for me sometimes)
+- [x] Launching firefox(maybe any window) has a small chance to spawn a 0,0 ignoring the wm(temp fix : force quit with ctrl+q and it only happends on startup for me sometimes)
+- [ ] Picom doesnt detect fullscreen, moving up/down layout
 - [ ] Firefox permission popup will sometimes spawn behind the window and firefox window needs to be focused to close it
-- [ ] Anything related to EMWH may not work since its not supported yet
-- [ ] Opening a sub window? maybe thats what its called of a window, example in discord [add file] will not map it(thunar) correctly for some reason
+- [x] Opening a sub window? maybe thats what its called of a window, example in discord [add file] will not map it(thunar) correctly for some reason
 - [ ] Fullscreening should probably unmap other windows, looks weird with transparancy
 - [ ] Bar is ofset sligthly to the left by a few pixels
+- [ ] Weird glitch with tiling layout top offset after removing bar(may be fixed, only happend once)
 - [ ] TODO. Will be adding more bugs that i encounter later, should have started keeping track of that earlier
