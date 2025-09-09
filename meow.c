@@ -90,6 +90,7 @@ static void handleButtonPress(XEvent *ev);
 static void handleKeyRelease(XEvent *ev);
 static void handleMotionNotify(XEvent *ev);
 static void handleKeyPress(XEvent *ev);
+static void handleClientMessage(XEvent *ev);
 static void retileLayout();
 static void sendClientMessage(Window w, Atom a);
 static void moveClientUpLayout(Client *client);
@@ -113,6 +114,7 @@ static void xwm_run();
 static void focusNextWindow();
 static void updateWindowBorders(Window w);
 static void applyRules(Client *c);
+static void updateDesktopProperties();
 static bool isLayoutTiling(WindowLayout layout);
 
 static XWM wm;
@@ -315,6 +317,9 @@ void xwm_run(){
         case KeyRelease:
           handleKeyRelease(&ev);
           break;
+        case ClientMessage:
+				  handleClientMessage(&ev);
+				  break;
       }
     }
     if(needsUpdate || ready == 0){
@@ -324,6 +329,42 @@ void xwm_run(){
   }
 }
 
+void handleClientMessage(XEvent *ev){
+  if(ev->xclient.message_type == XInternAtom(wm.display, "_NET_CURRENT_DESKTOP", False)){
+    changeDesktop((int)ev->xclient.data.l[0] + 1); 
+  }
+}
+
+void updateClientList(){
+  Window list[CLIENT_WINDOW_CAP];
+  int listIdx = 0;
+
+  for(int i = 0; i < CLIENT_WINDOW_CAP; i++){
+    Client *c = &wm.client_windows[i];
+    if(c->win != None){
+      list[listIdx++] = c->win;
+    }
+  }
+
+  Atom netClientList = XInternAtom(wm.display, "_NET_CLIENT_LIST", false);
+
+  XChangeProperty(wm.display, wm.root, netClientList, XA_WINDOW, 32, PropModeReplace, (unsigned char *)list, listIdx);
+
+}
+
+void updateDesktopProperties(){
+
+  Atom netNumberOfDesktops = XInternAtom(wm.display, "_NET_NUMBER_OF_DESKTOPS", False);
+  long desktopCount = DESKTOP_COUNT - 1;
+  XChangeProperty(wm.display, wm.root, netNumberOfDesktops, XA_CARDINAL, 32, 
+    PropModeReplace, (unsigned char *)&desktopCount, 1);
+
+  Atom netCurrentDesktop = XInternAtom(wm.display, "_NET_CURRENT_DESKTOP", False);
+  long currentDesktop = wm.currentDesktop - 1;
+  XChangeProperty(wm.display, wm.root, netCurrentDesktop, XA_CARDINAL, 32,
+    PropModeReplace, (unsigned char *)&currentDesktop, 1);
+
+}
 void handleButtonPress(XEvent *ev){
   XButtonEvent *e = &ev->xbutton;
 
@@ -484,11 +525,12 @@ void handleKeyPress(XEvent *ev){
   XKeyEvent *e = &ev->xkey;
   KeySym keysym = XkbKeycodeToKeysym(wm.display, e->keycode, 0, 0);
 
-  unsigned int cleanmask = e->state & ~(LockMask | Mod2Mask);
+  unsigned int cleanmask = MODMASK(e->state);
 
-  for(unsigned int i = 0; i < sizeof(keys)/sizeof(*keys); i++){
+  for(unsigned int i = 0; i < LENGTH(keys); i++){
     if(keys[i].key == keysym && keys[i].modifier == cleanmask){
       keys[i].func(&keys[i].arg);
+      break;
     }
   }
 }
@@ -754,6 +796,12 @@ void handleMapRequest(XEvent *ev){
 
   applyRules(c);
 
+  int desktopIndex = c->desktopIndex - 1;
+  XChangeProperty(wm.display, c->win,
+    XInternAtom(wm.display, "_NET_WM_DESKTOP", False),
+    XA_CARDINAL, 32, PropModeReplace,
+    (unsigned char *)&desktopIndex, 1);
+
   Window transientFor = None;
   if(XGetTransientForHint(wm.display, c->win, &transientFor) && transientFor != None){
     c->inLayout = false;
@@ -779,6 +827,8 @@ void handleMapRequest(XEvent *ev){
 
   if(c->frame != None) XRaiseWindow(wm.display, c->frame);
   setFocusToWindow(c->win);
+
+  updateClientList();
 }
 
 void handleUnmapNotify(XEvent *ev){
@@ -839,6 +889,7 @@ Window getFrameWindow(Window w){
   return 0;
 }
 
+
 void xwmWindowFrame(Window win){
 
   if(clientWindowExists(win) || clientFrameExists(win)) return;
@@ -858,6 +909,7 @@ void xwmWindowFrame(Window win){
   Atom aTypeDropDown =     XInternAtom(wm.display, "_NET_WM_WINDOW_TYPE_DROPDOWN_MENU", False);
   Atom aTypeTooltip =      XInternAtom(wm.display, "_NET_WM_WINDOW_TYPE_TOOLTIP", False);
   Atom aTypeCombo =        XInternAtom(wm.display, "_NET_WM_WINDOW_TYPE_COMBO", False);
+  Atom aTypeDock =         XInternAtom(wm.display, "_NET_WM_WINDOW_TYPE_DOCK", False);
   Atom aTypeNotification = XInternAtom(wm.display, "_NET_WM_WINDOW_TYPE_NOTIFICATION", False);
 
   unsigned char *prop = NULL;
@@ -866,6 +918,7 @@ void xwmWindowFrame(Window win){
   unsigned long nitems, bytes_after;
   bool isDialogLike = false;
   bool isMenuLike = false;
+  bool isDockLike = false;
 
   if(XGetWindowProperty(wm.display, win,
                         aTypeNet, 0,
@@ -884,6 +937,9 @@ void xwmWindowFrame(Window win){
          atoms[i] == aTypeCombo    || atoms[i] == aTypeNotification){
         isMenuLike = true;
       }
+      if(atoms[i] == aTypeDock){
+        isDockLike = true;
+      }
     }
     
     XFree(prop);
@@ -895,6 +951,9 @@ void xwmWindowFrame(Window win){
   bool has_transient = (XGetTransientForHint(wm.display, win, &transientFor) && transientFor != None);
 
   bool shouldManage = true;
+  if(isDockLike){
+    shouldManage = false;
+  }
   if(isMenuLike && !has_transient){
     shouldManage = false;
   }
@@ -1014,17 +1073,20 @@ void setFullscreen(Window w){
   wm.client_windows[clientIndex].fullscreenRevertSize = (Vec2){ .x = attr.width, .y = attr.height};
 
   Window frame = getFrameWindow(w);
-  XSetWindowBorderWidth(wm.display, frame, BORDER_WIDTH);
+  XSetWindowBorderWidth(wm.display, frame, 0);
   int screen = DefaultScreen(wm.display);
   int screenWidth = DisplayWidth(wm.display, screen);
   int screenHeight = DisplayHeight(wm.display, screen);
   XMoveResizeWindow(wm.display,
                     frame,
-                    0 - BORDER_WIDTH,
-                    0 - BORDER_WIDTH,
+                    0,
+                    0,
                     screenWidth,
                     screenHeight);
   XResizeWindow(wm.display, w, screenWidth, screenHeight);
+  XRaiseWindow(wm.display, frame);
+  XSetInputFocus(wm.display, w, RevertToParent, CurrentTime);
+  XSync(wm.display, false);
 }
 
 void unsetFullscreen(Window w){
@@ -1071,6 +1133,7 @@ void changeDesktop(int32_t desktopIndex){
   }
   retileLayout();
   focusNextWindow();
+  updateDesktopProperties();
 }
 
 void moveWindowToDesktop(Window w, int32_t desktopIndex){
@@ -1081,6 +1144,12 @@ void moveWindowToDesktop(Window w, int32_t desktopIndex){
   Client *client = &wm.client_windows[clientIndex];
   int32_t oldDesktop = client->desktopIndex;
   client->desktopIndex = desktopIndex;
+
+  int desktopIndexProperty = client->desktopIndex - 1;
+  XChangeProperty(wm.display, client->win,
+    XInternAtom(wm.display, "_NET_WM_DESKTOP", False),
+    XA_CARDINAL, 32, PropModeReplace,
+    (unsigned char *)&desktopIndexProperty, 1);
 
   if(desktopIndex == wm.currentDesktop){
     XMapWindow(wm.display, client->frame);
@@ -1123,6 +1192,7 @@ void moveClientUpLayout(Client *client){
   Client tmp = wm.client_windows[clientIndex];
   wm.client_windows[clientIndex] = wm.client_windows[targetIndex];
   wm.client_windows[targetIndex] = tmp;
+
   retileLayout();
 }
 

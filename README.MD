@@ -13,7 +13,7 @@ So far meow has support for:<br>
 - [x] Window borders<br>
 - [x] Gaps between windows in a layout<br>
 - [x] Better config
-- [ ] Support for other bars(example polybar, etc), (HIGHEST PRIORITY)
+- [x] Support for other bars(example polybar, etc), (HIGHEST PRIORITY(almost done))
 - [ ] Cleaner readme
 - [ ] EWMH support
 - [ ] Hover to select windows<br>
@@ -35,9 +35,8 @@ Make sure to check it out aswell!<br><br>
 ## Bugs
 
 - [x] Launching firefox(maybe any window) has a small chance to spawn a 0,0 ignoring the wm(temp fix : force quit with ctrl+q and it only happends on startup for me sometimes)
-- [ ] Picom doesnt detect fullscreen, moving up/down layout
-- [ ] Firefox permission popup will sometimes spawn behind the window and firefox window needs to be focused to close it
 - [x] Opening a sub window? maybe thats what its called of a window, example in discord [add file] will not map it(thunar) correctly for some reason
+- [ ] While polybar is focused(for whatever reason) if you try to fullscreen it, wm crashes
 - [ ] Fullscreening should probably unmap other windows, looks weird with transparancy
 - [ ] Bar is ofset sligthly to the left by a few pixels
 - [ ] Weird glitch with tiling layout top offset after removing bar(may be fixed, only happend once)

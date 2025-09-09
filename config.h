@@ -83,7 +83,7 @@ struct KeyEvent keys[] = {
   {MOD, XK_7,      switchDesktop,           {.i = 7}},
   {MOD, XK_8,      switchDesktop,           {.i = 8}},
   {MOD, XK_9,      switchDesktop,           {.i = 9}},
-  {MOD, XK_0,      switchDesktop,           {.i = 0}},
+  //{MOD, XK_0,      switchDesktop,           {.i = 0}},
 
   {MOD|ShiftMask, XK_1, transferWindowToDesktop, {.i = 1}},
   {MOD|ShiftMask, XK_2, transferWindowToDesktop, {.i = 2}},
@@ -94,7 +94,7 @@ struct KeyEvent keys[] = {
   {MOD|ShiftMask, XK_7, transferWindowToDesktop, {.i = 7}},
   {MOD|ShiftMask, XK_8, transferWindowToDesktop, {.i = 8}},
   {MOD|ShiftMask, XK_9, transferWindowToDesktop, {.i = 9}},
-  {MOD|ShiftMask, XK_0, transferWindowToDesktop, {.i = 0}}
+  //{MOD|ShiftMask, XK_0, transferWindowToDesktop, {.i = 0}}
 };
 
 
