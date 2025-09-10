@@ -3,8 +3,8 @@
 
 #define START_WINDOW_GAP 20
 #define DESKTOP_COUNT 10
-#define BORDER_WIDTH 1
-#define BORDER_FOCUSED_WIDTH 1 // currently a bit broken visually(layout will look ugly)
+#define BORDER_WIDTH 2
+#define BORDER_FOCUSED_WIDTH 2 // currently a bit broken visually(layout will look ugly)
 #define BORDER_COLOR 0x1e1e1e
 #define BORDER_FOCUSED_COLOR 0xADD8E6
 
