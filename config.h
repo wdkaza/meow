@@ -5,8 +5,8 @@
 #define DESKTOP_COUNT 10
 #define BORDER_WIDTH 2
 #define BORDER_FOCUSED_WIDTH 2 // currently a bit broken visually(layout will look ugly)
-#define BORDER_COLOR 0x1e1e1e
-#define BORDER_FOCUSED_COLOR 0xADD8E6
+#define BORDER_COLOR 0x03819B
+#define BORDER_FOCUSED_COLOR 0xA54242
 
 #define BG_COLOR 0x000000
 
