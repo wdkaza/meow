@@ -43,6 +43,12 @@ typedef struct {
   float x, y;
 } Vec2;
 
+typedef struct{
+  int topBorder;
+  int bottomBorder;
+  // TOOD expand
+} Configuration;
+
 
 typedef struct {
   Window win;
@@ -75,8 +81,11 @@ typedef struct {
   int screenHeight;
   int screenWidth;
 
+  Configuration conf;
+
   Atom ATOM_WM_DELETE_WINDOW;
   Atom ATOM_WM_PROTOCOLS;
+  Atom ATOM_NET_ACTIVE_WINDOW;
 } XWM;
 
 static void handleConfigureRequst(XEvent *ev);
@@ -116,6 +125,8 @@ static void updateWindowBorders(Window w);
 static void applyRules(Client *c);
 static void updateDesktopProperties();
 static bool isLayoutTiling(WindowLayout layout);
+static void FGetFixedPartialStrut(Window w);
+static void updateActiveWindow(Window w);
 
 static XWM wm;
 
@@ -249,6 +260,10 @@ void xwm_run(){
   wm.currentDesktop = 1;
   wm.ATOM_WM_PROTOCOLS = XInternAtom(wm.display, "WM_PROTOCOLS", false);
   wm.ATOM_WM_DELETE_WINDOW = XInternAtom(wm.display, "WM_DELETE_WINDOW", false);
+  wm.ATOM_NET_ACTIVE_WINDOW = XInternAtom(wm.display, "_NET_ACTIVE_WINDOW", false);
+
+  updateActiveWindow(None);
+  updateDesktopProperties();
 
   initDesktops();
 
@@ -329,9 +344,23 @@ void xwm_run(){
   }
 }
 
+
 void handleClientMessage(XEvent *ev){
   if(ev->xclient.message_type == XInternAtom(wm.display, "_NET_CURRENT_DESKTOP", False)){
     changeDesktop((int)ev->xclient.data.l[0] + 1); 
+  }
+  else if(ev->xclient.message_type == wm.ATOM_NET_ACTIVE_WINDOW){
+    Window w = ev->xclient.window;
+    if(clientWindowExists(w)){
+      int32_t clientIndex = getClientIndex(w);
+      if(clientIndex != -1){
+        int32_t windowDesktop = wm.client_windows[clientIndex].desktopIndex;
+        if(windowDesktop != wm.currentDesktop){
+          changeDesktop(windowDesktop);
+        }
+        setFocusToWindow(w);
+      }
+    }
   }
 }
 
@@ -363,6 +392,20 @@ void updateDesktopProperties(){
   long currentDesktop = wm.currentDesktop - 1;
   XChangeProperty(wm.display, wm.root, netCurrentDesktop, XA_CARDINAL, 32,
     PropModeReplace, (unsigned char *)&currentDesktop, 1);
+
+  Atom supportedAtoms[] = {
+    XInternAtom(wm.display, "_NET_SUPPORTING_WM_CHECK", false),
+    XInternAtom(wm.display, "_NET_WM_NAME", false),
+    XInternAtom(wm.display, "_NET_NUMBER_OF_DESKTOPS", false),
+    XInternAtom(wm.display, "_NET_CURRENT_DESKTOP", false),
+    XInternAtom(wm.display, "_NET_CLIENT_LIST" , false),
+    XInternAtom(wm.display, "_NET_WM_DESKTOP", false),
+    wm.ATOM_NET_ACTIVE_WINDOW
+  };
+
+  Atom netSupported = XInternAtom(wm.display, "_NET_SUPPORTED", false);
+  XChangeProperty(wm.display, wm.root, netSupported, XA_ATOM, 32, PropModeReplace,
+                  (unsigned char *)supportedAtoms, sizeof(supportedAtoms) / sizeof(Atom));
 
 }
 void handleButtonPress(XEvent *ev){
@@ -458,16 +501,24 @@ void updateWindowBorders(Window w){
 
 }
 
+void updateActiveWindow(Window w){
+  XChangeProperty(wm.display, wm.root, wm.ATOM_NET_ACTIVE_WINDOW,
+                  XA_WINDOW, 32, PropModeReplace, 
+                  (unsigned char *)&w, 1);
+  XSync(wm.display, false);
+}
 
 void setFocusToWindow(Window w){
   if(w != None && clientWindowExists(w)){
     XRaiseWindow(wm.display, getFrameWindow(w));
     XSetInputFocus(wm.display, w, RevertToParent, CurrentTime);
     updateWindowBorders(w);
+    updateActiveWindow(w);
   }
   else{
     XSetInputFocus(wm.display, wm.root, RevertToParent, CurrentTime);
     updateWindowBorders(None);
+    updateActiveWindow(None);
   }
 }
 
@@ -730,6 +781,32 @@ void transferWindowToDesktop(Arg *arg){
     moveWindowToDesktop(focusedWindow, newDesktop);
   }
 }
+// from fluorite
+void FGetFixedPartialStrut(Window w){
+  Atom strut_atom = XInternAtom(wm.display, "_NET_WM_STRUT_PARTIAL", false);
+  Atom actual_type;
+  int actual_format;
+  unsigned long nitems, bytes_after;
+  unsigned char *prop = NULL;
+
+  if(XGetWindowProperty(wm.display, w, strut_atom,
+                        0, 12, false, XA_CARDINAL,
+                        &actual_type, &actual_format,
+                        &nitems, &bytes_after, &prop) == Success && prop)
+  {
+    if(actual_type == XA_CARDINAL && actual_format == 32 && nitems >= 4){
+      long *values = (long *)prop;
+      if(values[2] > 0){
+        wm.conf.topBorder = (int)values[2];
+      }
+      else if(values[3] > 0){
+        wm.conf.bottomBorder = (int)values[3];
+      }
+      retileLayout();
+    }
+    XFree(prop);
+  }
+}
 
 void handleKeyRelease(XEvent *ev){
   (void)ev;
@@ -756,7 +833,7 @@ void manageFloatingWindow(Client *c){
   unsigned int ww = (unsigned int)attr.width;
   unsigned int wh = (unsigned int)attr.height;
 
-  int availableHeight = wm.screenHeight; // TODO
+  int availableHeight = wm.screenHeight + wm.conf.topBorder; // TODO add bottomBorder via "?" (if its zero, etc) 
 
   int centerX = (wm.screenWidth - (int)ww) / 2;
   int centerY = (availableHeight - (int)wh) / 2;
@@ -953,9 +1030,11 @@ void xwmWindowFrame(Window win){
   bool shouldManage = true;
   if(isDockLike){
     shouldManage = false;
+    FGetFixedPartialStrut(win);
   }
   if(isMenuLike && !has_transient){
     shouldManage = false;
+    FGetFixedPartialStrut(win);
   }
   if(!isMenuLike && !isDialogLike && override_redirect){
     shouldManage = true;
@@ -1012,6 +1091,7 @@ void xwmWindowFrame(Window win){
   c->forceManage = (has_transient || isDialogLike);
   c->inLayout = isLayoutTiling(wm.currentLayout) && !c->forceManage;
 
+
   wm.clients_count++;
 
   XGrabButton(wm.display, Button1, MOD, win, False,
@@ -1052,6 +1132,7 @@ void xwmWindowUnframe(Window w){
   wm.clients_count--;
 
   retileLayout();
+  updateClientList();
 }
 
 int32_t getClientIndex(Window w){
@@ -1228,8 +1309,8 @@ void retileLayout(){
   }
   if(client_count == 0) return;
 
-  int availableHeight = wm.screenHeight; //TODO
-  int startY = 0; //TODO
+  int availableHeight = wm.screenHeight - wm.conf.topBorder - wm.conf.bottomBorder; //TODO
+  int startY = wm.conf.topBorder; //TODO
 
   if(wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER){
 
@@ -1256,13 +1337,13 @@ void retileLayout(){
     master->fullscreen = false;
 
     int32_t stackFrameWidth = wm.screenWidth/2 - wm.windowGap - (wm.windowGap/2);
-    int32_t stackFrameHeight = (availableHeight - (client_count * wm.windowGap)) / (client_count - 1);
+    int32_t stackFrameHeight = (availableHeight - ((client_count) * wm.windowGap)) / (client_count - 1);
     int32_t stackX = wm.screenWidth / 2 + (wm.windowGap/2);
 
     for(uint32_t i = 1; i < client_count; i++){
       Client *client = clients[i]; 
       int32_t stackY = wm.windowGap + (i - 1) * (stackFrameHeight + wm.windowGap);
-      XMoveWindow(wm.display, client->frame, stackX - BORDER_WIDTH, stackY - BORDER_WIDTH);
+      XMoveWindow(wm.display, client->frame, stackX - BORDER_WIDTH, startY + stackY - BORDER_WIDTH);
       XResizeWindow(wm.display, client->frame, stackFrameWidth, stackFrameHeight);
       XResizeWindow(wm.display, client->win, stackFrameWidth, stackFrameHeight);
       XSetWindowBorderWidth(wm.display, client->frame, BORDER_WIDTH);
