@@ -2,6 +2,7 @@
 #include <X11/X.h>
 #include <stdint.h>
 #include <X11/keysym.h>
+#include <stdbool.h>
 #include <X11/Xlib.h>
 
 #define VOLUME_UP_CMD "pactl set-sink-volume @DEFAULT_SINK@ +5%"
@@ -29,6 +30,11 @@ void decreaseBrightness(Arg *arg);
 void minBrightness(Arg *arg);
 void decreaseGapSize(Arg *arg);
 void increaseGapSize(Arg *arg);
+void increaseMasterGapSize(Arg *arg);
+void decreaseMasterGapSize(Arg *arg);
+void increaseSlaveHeight(Arg *arg);
+void decreaseSlaveHeight(Arg *arg);
+void resetMasterGapSize(Arg *arg);
 void setWindowLayoutTiled(Arg *arg);
 void setWindowLayoutFloating(Arg *arg);
 void moveWindowUp(Arg *arg);

@@ -1,12 +1,14 @@
 #pragma once
+#include <limits.h>
+#include <stdbool.h> // xD ignore this way of doing things, 
 #include "structs.h"
 
 #define START_WINDOW_GAP 20
 #define DESKTOP_COUNT 10
 #define BORDER_WIDTH 2
 #define BORDER_FOCUSED_WIDTH 2 // currently a bit broken visually(layout will look ugly)
-#define BORDER_COLOR 0x03819B
-#define BORDER_FOCUSED_COLOR 0xA54242
+#define BORDER_COLOR 0x1e1e1e
+#define BORDER_FOCUSED_COLOR 0xADD8E6
 
 #define BG_COLOR 0x000000
 
@@ -33,14 +35,19 @@ static char *screenshot[] = {"scrot", NULL};
 // increaseBrightness     (you can use "spawn" with your custom command if this one wont work, also do the same for others if they do not work for you)
 // decreaseBrigthness     
 // minBrigthness (1%)
-// increaseGapSize
-// decreaseGapSize
+// increaseGapSize        (value required) value = step size (default 5)
+// decreaseGapSize        (value required) value = step size (default 5)
+// increaseMasterGapSize  (value required) value = step size (default 40)
+// decreaseMasterGapSize  (value required) value = step size (default 40)
+// increaseSlaveHeight    (value required) value = step size
+// decreaseSlaveHeight    (value required) value = step size
+// resetMasterGapSize     (sets the gap to 0, master window takes half ot the screen)
 // cycleWindows
 // fullscreen             
 // setWindowLayoutTiled
 //
-// switchDesktop          (value required)
-// transferWindowToDesktop(value required)
+// switchDesktop          (value required) value = desktop number
+// transferWindowToDesktop(value required) value = desktop number
 
 // [MOD-KEY, KEY, ACTION, VALUE(if none set to 0)]
 // [MOD-KEY|ShiftMask, ...]   for mod+shift keybinds
@@ -55,7 +62,7 @@ struct KeyEvent keys[] = {
   //
   {MOD, XK_Return, spawn,                   {.v = terminal}},
   {MOD, XK_slash,  spawn,                   {.v = launcher}},
-  {MOD, XK_p,      spawn,                   {.v = screenshot}},
+ {MOD, XK_p,      spawn,                   {.v = screenshot}},
   {MOD, XK_q,      kill,                    {0}},
   {MOD, XK_space,  addWindowToLayout,       {0}},
   {MOD, XK_Up,     moveWindowUp,            {0}},
@@ -66,12 +73,20 @@ struct KeyEvent keys[] = {
   {MOD, XK_F6,     increaseBrightness,      {0}},
   {MOD, XK_F5,     decreaseBrightness,      {0}},
   {MOD, XK_F7,     minBrightness,           {0}},
-  {MOD, XK_y,      increaseGapSize,         {0}},
-  {MOD, XK_u,      decreaseGapSize,         {0}},
   {MOD, XK_Tab,    cycleWindows,            {0}},
   {MOD, XK_f,      fullscreen,              {0}},
   {MOD, XK_r,      setWindowLayoutTiled,    {0}},
   {MOD, XK_t,      setWindowLayoutFloating, {0}},
+
+  // Layout related keybindings
+  {MOD, XK_y,           increaseGapSize,       {.i = 5}},
+  {MOD, XK_u,           decreaseGapSize,       {.i = 5}},
+  {MOD|ShiftMask, XK_y, increaseMasterGapSize, {.i = 40}},
+  {MOD|ShiftMask, XK_u, decreaseMasterGapSize, {.i = 40}},
+  {MOD|ShiftMask, XK_o, resetMasterGapSize,    {0}},
+  {MOD|ShiftMask, XK_s, increaseSlaveHeight,   {.i = 20}},
+  {MOD|ShiftMask, XK_d, decreaseSlaveHeight,   {.i = 20}},
+
 
   // desktop related keybindings
   {MOD, XK_1,      switchDesktop,           {.i = 1}},

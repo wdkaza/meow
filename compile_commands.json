@@ -1,0 +1,24 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-c",
+      "-Wall",
+      "-Wextra",
+      "-I/usr/include/freetype2",
+      "-I/usr/include/freetype2",
+      "-I/usr/include/libpng16",
+      "-I/usr/include/harfbuzz",
+      "-I/usr/include/glib-2.0",
+      "-I/usr/lib/glib-2.0/include",
+      "-I/usr/include/sysprof-6",
+      "-pthread",
+      "-o",
+      "meow",
+      "meow.c"
+    ],
+    "directory": "/home/wdkaza/code/meow",
+    "file": "/home/wdkaza/code/meow/meow.c",
+    "output": "/home/wdkaza/code/meow/meow"
+  }
+]

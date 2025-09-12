@@ -7,13 +7,13 @@
 #include <X11/Xcursor/Xcursor.h>
 #include <X11/XKBlib.h>
 #include <X11/cursorfont.h>
+#include <stdbool.h>
 #include "config.h"
 #include "structs.h"
 #include <sys/select.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdbool.h>
 #include <string.h>
 #include <stdint.h>
 #include <assert.h>
@@ -29,6 +29,9 @@
 
 #define MIN(a, b) (((a)<(b))?(a):(b))
 #define MAX(a, b) ((a) > (b) ? (a) : b)
+#define CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
+
+
 
 static unsigned int numlockmask = 0;
 #define MODMASK(mask) (mask & ~(numlockmask | LockMask) & (ShiftMask|ControlMask|Mod1Mask|Mod2Mask|Mod3Mask|Mod4Mask|Mod5Mask))
@@ -44,9 +47,10 @@ typedef struct {
 } Vec2;
 
 typedef struct{
+  uint32_t windowGap;
+  uint32_t masterWindowGap;
   int topBorder;
   int bottomBorder;
-  // TOOD expand
 } Configuration;
 
 
@@ -56,6 +60,7 @@ typedef struct {
   bool fullscreen;
   Vec2 fullscreenRevertSize;
   bool inLayout;
+  int heightInLayout;
   bool forceManage;
   int32_t desktopIndex;
 } Client;
@@ -75,7 +80,6 @@ typedef struct {
   Vec2 cursor_start_frame_size;
 
   WindowLayout currentLayout;
-  uint32_t windowGap;
   Window focused_Window;
 
   int screenHeight;
@@ -127,6 +131,7 @@ static void updateDesktopProperties();
 static bool isLayoutTiling(WindowLayout layout);
 static void FGetFixedPartialStrut(Window w);
 static void updateActiveWindow(Window w);
+static Client *getFocusedSlaveClient();
 
 static XWM wm;
 
@@ -255,12 +260,17 @@ void xwm_run(){
   wm.cursor_start_frame_size = (Vec2){ .x = 0.0f, .y = 0.0f};
   wm.cursor_start_frame_pos = (Vec2){ .x = 0.0f, .y = 0.0f};
   wm.cursor_start_pos = (Vec2){ .x = 0.0f, .y = 0.0f};
-  wm.windowGap = START_WINDOW_GAP;
   wm.currentLayout = WINDOW_LAYOUT_TILED_MASTER;
   wm.currentDesktop = 1;
   wm.ATOM_WM_PROTOCOLS = XInternAtom(wm.display, "WM_PROTOCOLS", false);
   wm.ATOM_WM_DELETE_WINDOW = XInternAtom(wm.display, "WM_DELETE_WINDOW", false);
   wm.ATOM_NET_ACTIVE_WINDOW = XInternAtom(wm.display, "_NET_ACTIVE_WINDOW", false);
+
+  wm.conf.windowGap = START_WINDOW_GAP;
+  wm.conf.masterWindowGap = 0;
+  wm.conf.topBorder = 0;
+  wm.conf.bottomBorder = 0;
+
 
   updateActiveWindow(None);
   updateDesktopProperties();
@@ -673,17 +683,59 @@ void minBrightness(Arg *arg){
 }
 
 void increaseGapSize(Arg *arg){
-  (void)arg;
 
-  wm.windowGap = MIN(wm.windowGap + 2, 100);
+  wm.conf.windowGap = CLAMP((int)wm.conf.windowGap - arg->i, 15, 100);
   retileLayout();
+
 }
 
 void decreaseGapSize(Arg *arg){
+
+  wm.conf.windowGap = CLAMP((int)wm.conf.windowGap + arg->i, 15, 100);
+  retileLayout();
+
+}
+
+void increaseMasterGapSize(Arg *arg){
+
+  wm.conf.masterWindowGap = CLAMP((int)wm.conf.masterWindowGap - arg->i, -450, 450);
+  retileLayout();
+
+}
+
+void decreaseMasterGapSize(Arg *arg){
+
+  wm.conf.masterWindowGap = CLAMP((int)wm.conf.masterWindowGap + arg->i, -450, 450); 
+  retileLayout();
+
+}
+
+void resetMasterGapSize(Arg *arg){
   (void)arg;
 
-  wm.windowGap = MAX((int)wm.windowGap - 2, 15);
+  wm.conf.masterWindowGap = 0;
   retileLayout();
+
+}
+
+void increaseSlaveHeight(Arg *arg){
+  if(wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER){
+    Client *slave = getFocusedSlaveClient();
+    if(!slave) return;
+
+    slave->heightInLayout = CLAMP((int)slave->heightInLayout - arg->i, -300, 300);
+    retileLayout();
+  }
+}
+
+void decreaseSlaveHeight(Arg *arg){
+  if(wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER){
+    Client *slave = getFocusedSlaveClient();
+    if(!slave) return;
+
+    slave->heightInLayout = CLAMP((int)slave->heightInLayout + arg->i, -300, 300);
+    retileLayout();
+  }
 }
 
 void setWindowLayoutTiled(Arg *arg){
@@ -754,6 +806,11 @@ void cycleWindows(Arg *arg){
     break;
     }
   }
+
+  if(wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER){
+    retileLayout(); // avoids weird looking fullscreen, kind of a half-ass bug fix
+  }
+
   if(currentIndex != -1){
     for(uint32_t i = 1; i < wm.clients_count; i++){
       uint32_t nextIndex = (currentIndex + i) % wm.clients_count;
@@ -781,6 +838,7 @@ void transferWindowToDesktop(Arg *arg){
     moveWindowToDesktop(focusedWindow, newDesktop);
   }
 }
+
 // from fluorite
 void FGetFixedPartialStrut(Window w){
   Atom strut_atom = XInternAtom(wm.display, "_NET_WM_STRUT_PARTIAL", false);
@@ -1298,6 +1356,33 @@ void moveClientDownLayout(Client *client){
   retileLayout();
 }
 
+Client *getFocusedSlaveClient(){
+  if(wm.focused_Window == None) return NULL;
+  if(!clientWindowExists(wm.focused_Window)) return NULL;
+
+  int32_t focusedIndex = getClientIndex(wm.focused_Window);
+  if(focusedIndex == -1) return NULL;
+
+  Client *focusedClient = &wm.client_windows[focusedIndex];
+  if(!focusedClient->inLayout || focusedClient->desktopIndex != wm.currentDesktop){
+    return NULL;
+  }
+
+  Client *clients[CLIENT_WINDOW_CAP];
+  uint32_t client_count = 0;
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+    if(wm.client_windows[i].inLayout && wm.client_windows[i].desktopIndex == wm.currentDesktop){
+      clients[client_count++] = &wm.client_windows[i];
+    }
+  }
+
+  if((client_count <= 1) || (clients[0] == focusedClient)){
+    return NULL;
+  }
+
+  return focusedClient;
+}
+
 void retileLayout(){
 
   Client *clients[CLIENT_WINDOW_CAP];
@@ -1309,17 +1394,17 @@ void retileLayout(){
   }
   if(client_count == 0) return;
 
-  int availableHeight = wm.screenHeight - wm.conf.topBorder - wm.conf.bottomBorder; //TODO
-  int startY = wm.conf.topBorder; //TODO
+  int availableHeight = wm.screenHeight - wm.conf.topBorder - wm.conf.bottomBorder;
+  int startY = wm.conf.topBorder;
 
   if(wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER){
 
 
     Client *master = clients[0];
     if(client_count == 1){
-      XMoveWindow(wm.display, master->frame, wm.windowGap - BORDER_WIDTH, startY + wm.windowGap - BORDER_WIDTH);
-      int frameWidth = wm.screenWidth - 2 * wm.windowGap;
-      int frameHeight = availableHeight - 2 * wm.windowGap;
+      XMoveWindow(wm.display, master->frame, wm.conf.windowGap - BORDER_WIDTH, startY + wm.conf.windowGap - BORDER_WIDTH);
+      int frameWidth = wm.screenWidth - 2 * wm.conf.windowGap;
+      int frameHeight = availableHeight - 2 * wm.conf.windowGap;
       XResizeWindow(wm.display, master->frame, frameWidth, frameHeight);
       XResizeWindow(wm.display, master->win, frameWidth, frameHeight);
       XSetWindowBorderWidth(wm.display, master->frame, BORDER_WIDTH);
@@ -1328,30 +1413,32 @@ void retileLayout(){
       }
       return;
     } 
-    XMoveWindow(wm.display, master->frame, wm.windowGap - BORDER_WIDTH, startY + wm.windowGap - BORDER_WIDTH);
-    int masterFrameWidth = wm.screenWidth/2 - wm.windowGap - (wm.windowGap/2);
-    int masterFrameHeight = availableHeight - 2 * wm.windowGap;
+    XMoveWindow(wm.display, master->frame, wm.conf.windowGap - BORDER_WIDTH, startY + wm.conf.windowGap - BORDER_WIDTH);
+    int masterFrameWidth = wm.screenWidth/2 - wm.conf.windowGap - (wm.conf.windowGap/2) + wm.conf.masterWindowGap;
+    int masterFrameHeight = availableHeight - 2 * wm.conf.windowGap;
     XResizeWindow(wm.display, master->frame, masterFrameWidth, masterFrameHeight);
     XResizeWindow(wm.display, master->win, masterFrameWidth, masterFrameHeight);
     XSetWindowBorderWidth(wm.display, master->frame, BORDER_WIDTH);
     master->fullscreen = false;
 
-    int32_t stackFrameWidth = wm.screenWidth/2 - wm.windowGap - (wm.windowGap/2);
-    int32_t stackFrameHeight = (availableHeight - ((client_count) * wm.windowGap)) / (client_count - 1);
-    int32_t stackX = wm.screenWidth / 2 + (wm.windowGap/2);
+    int32_t stackFrameWidth = wm.screenWidth/2 - wm.conf.windowGap - (wm.conf.windowGap / 2);
+    int32_t stackFrameHeight = (availableHeight - ((client_count) * wm.conf.windowGap)) / (client_count - 1);
+    int32_t stackX = (wm.screenWidth / 2 + (wm.conf.windowGap / 2)) + wm.conf.masterWindowGap;
 
     for(uint32_t i = 1; i < client_count; i++){
-      Client *client = clients[i]; 
-      int32_t stackY = wm.windowGap + (i - 1) * (stackFrameHeight + wm.windowGap);
+      Client *client = clients[i];
+      int32_t stackY = wm.conf.windowGap + (i - 1) * (stackFrameHeight + wm.conf.windowGap);
+
       XMoveWindow(wm.display, client->frame, stackX - BORDER_WIDTH, startY + stackY - BORDER_WIDTH);
-      XResizeWindow(wm.display, client->frame, stackFrameWidth, stackFrameHeight);
-      XResizeWindow(wm.display, client->win, stackFrameWidth, stackFrameHeight);
+      XResizeWindow(wm.display, client->frame, stackFrameWidth - wm.conf.masterWindowGap, stackFrameHeight);
+      XResizeWindow(wm.display, client->win, stackFrameWidth - wm.conf.masterWindowGap, stackFrameHeight);
       XSetWindowBorderWidth(wm.display, client->frame, BORDER_WIDTH);
+
       if(client->fullscreen){
         client->fullscreen = false;
       }
     }
-
+    
     if(wm.focused_Window != None && clientWindowExists(wm.focused_Window)){
       updateWindowBorders(wm.focused_Window);
     }
