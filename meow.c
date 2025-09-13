@@ -23,7 +23,7 @@
 // it would be nice to rewrite it someday but im happy with it for now
 // and aslong as everything you see works fine its ok :D
 
-// this project started with a "what if" question :)
+// this project started with a "what if" question :) so please go ahead and do something you always wanted
 
 #define CLIENT_WINDOW_CAP 256
 
@@ -39,6 +39,7 @@ static unsigned int numlockmask = 0;
 
 typedef enum{
   WINDOW_LAYOUT_TILED_MASTER = 0,
+  WINDOW_LAYOUT_TILED_CASCADE,
   WINDOW_LAYOUT_FLOATING
 } WindowLayout;
 
@@ -60,6 +61,7 @@ typedef struct {
   bool fullscreen;
   Vec2 fullscreenRevertSize;
   bool inLayout;
+  bool isMaster;
   int heightInLayout;
   bool forceManage;
   int32_t desktopIndex;
@@ -745,7 +747,20 @@ void setWindowLayoutTiled(Arg *arg){
   for(uint32_t i = 0; i < wm.clients_count; i++){
     wm.client_windows[i].inLayout = true;
     if(wm.client_windows[i].fullscreen){
-    unsetFullscreen(wm.client_windows[i].frame);
+      unsetFullscreen(wm.client_windows[i].frame);
+    }
+  }
+  retileLayout();
+}
+
+void setWindowLayoutCascase(Arg *arg){
+  (void)arg;
+
+  wm.currentLayout = WINDOW_LAYOUT_TILED_CASCADE;
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+    wm.client_windows[i].inLayout = true;
+    if(wm.client_windows[i].fullscreen){
+      unsetFullscreen(wm.client_windows[i].frame);
     }
   }
   retileLayout();
@@ -807,19 +822,69 @@ void cycleWindows(Arg *arg){
     }
   }
 
-  if(wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER){
+  if(wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER || wm.currentLayout == WINDOW_LAYOUT_FLOATING){
     retileLayout(); // avoids weird looking fullscreen, kind of a half-ass bug fix
-  }
 
-  if(currentIndex != -1){
-    for(uint32_t i = 1; i < wm.clients_count; i++){
-      uint32_t nextIndex = (currentIndex + i) % wm.clients_count;
-      if(wm.client_windows[nextIndex].desktopIndex == wm.currentDesktop){
-        setFocusToWindow(wm.client_windows[nextIndex].win);
-        break;
+    if(currentIndex != -1){
+      for(uint32_t i = 1; i < wm.clients_count; i++){
+        uint32_t nextIndex = (currentIndex + i) % wm.clients_count;
+        if(wm.client_windows[nextIndex].desktopIndex == wm.currentDesktop){
+          setFocusToWindow(wm.client_windows[nextIndex].win);
+          break;
+        }
       }
     }
   }
+  // yeah... i know its a bad way of doing it..
+  else if(wm.currentLayout == WINDOW_LAYOUT_TILED_CASCADE){
+    int32_t masterIndex = -1;
+    int32_t lastClientIndex = -1;
+
+    for(uint32_t i = 0; i < wm.clients_count; i++){
+      if(wm.client_windows[i].desktopIndex == wm.currentDesktop && wm.client_windows[i].inLayout){
+        if(masterIndex == -1){
+          masterIndex = i;
+        }
+        lastClientIndex = i;
+      }
+    }
+
+    int32_t cycle[wm.clients_count];
+    uint32_t cycleCount = 0;
+
+    if(masterIndex != -1) cycle[cycleCount++] = masterIndex;
+    if(lastClientIndex != -1 && lastClientIndex != masterIndex) cycle[cycleCount++] = lastClientIndex;
+
+    for(uint32_t i = 0; i < wm.clients_count; i++){
+      if(wm.client_windows[i].desktopIndex == wm.currentDesktop && !wm.client_windows[i].inLayout){
+        cycle[cycleCount++] = i;
+      }
+    }
+
+    bool found = false;
+    for(uint32_t i = 0; i < cycleCount; i++){
+      if(cycle[i] == currentIndex){
+        uint32_t next = (i + 1) % cycleCount;
+        setFocusToWindow(wm.client_windows[cycle[next]].win);
+        found = true;
+        break;
+      }
+    }
+    if(!found){
+      for(uint32_t i = 0; i < wm.clients_count; i++){
+        if(wm.client_windows[i].desktopIndex == wm.currentDesktop && wm.client_windows[i].inLayout){
+          setFocusToWindow(wm.client_windows[i].win);
+        }
+      }
+      setFocusToWindow(wm.client_windows[cycle[0]].win);
+    }
+  }
+}
+
+void exitWM(Arg *arg){
+  (void)arg;
+
+  wm.running = 0;
 }
 
 void switchDesktop(Arg *arg){
@@ -1443,7 +1508,62 @@ void retileLayout(){
       updateWindowBorders(wm.focused_Window);
     }
     XSync(wm.display, false);
-  } 
+  }
+  else if(wm.currentLayout == WINDOW_LAYOUT_TILED_CASCADE){
+    Client *master = clients[0];
+    if(client_count == 1){
+      XMoveWindow(wm.display, master->frame, wm.conf.windowGap - BORDER_WIDTH, startY + wm.conf.windowGap - BORDER_WIDTH);
+      int frameWidth = wm.screenWidth - 2 * wm.conf.windowGap;
+      int frameHeight = availableHeight - 2 * wm.conf.windowGap;
+      XResizeWindow(wm.display, master->frame, frameWidth, frameHeight);
+      XResizeWindow(wm.display, master->win, frameWidth, frameHeight);
+      XSetWindowBorderWidth(wm.display, master->frame, BORDER_WIDTH);
+      master->fullscreen = false;
+      return;
+    }
+
+    XMoveWindow(wm.display, master->frame, wm.conf.windowGap - BORDER_WIDTH, startY + wm.conf.windowGap - BORDER_WIDTH);
+    int masterFrameWidth = wm.screenWidth/2 - wm.conf.windowGap - (wm.conf.windowGap/2) + wm.conf.masterWindowGap;
+    int masterFrameHeight = availableHeight - 2 * wm.conf.windowGap;
+    XResizeWindow(wm.display, master->frame, masterFrameWidth, masterFrameHeight);
+    XResizeWindow(wm.display, master->win, masterFrameWidth, masterFrameHeight);
+    XSetWindowBorderWidth(wm.display, master->frame, BORDER_WIDTH);
+    master->fullscreen = false;
+
+    int stackX = (wm.screenWidth / 2 + (wm.conf.windowGap / 2)) + wm.conf.masterWindowGap;
+
+    int offsetX = wm.conf.windowGap;
+    int offsetY = wm.conf.windowGap;
+
+    if(offsetX < 24) offsetX = 24;
+    if(offsetY < 24) offsetY = 24;
+
+    int baseWidth  = wm.screenWidth - stackX - wm.conf.windowGap - (client_count - 2) * offsetX;
+    int baseHeight = availableHeight - 2 * wm.conf.windowGap - (client_count - 2) * offsetY;
+
+    if(baseWidth < 100) baseWidth = 100;
+    if(baseHeight < 60) baseHeight = 60;
+
+    for(uint32_t i = 1; i < client_count; i++){
+      Client *client = clients[i];
+
+      int x = stackX + (i - 1) * offsetX;
+      int y = startY + wm.conf.windowGap + (i - 1) * offsetY;
+
+      XMoveWindow(wm.display, client->frame, x - BORDER_WIDTH, y - BORDER_WIDTH);
+      XResizeWindow(wm.display, client->frame, baseWidth, baseHeight);
+      XResizeWindow(wm.display, client->win, baseWidth, baseHeight);
+      XSetWindowBorderWidth(wm.display, client->frame, BORDER_WIDTH);
+
+      client->fullscreen = false;
+    }
+
+    if(wm.focused_Window != None && clientWindowExists(wm.focused_Window)){
+      updateWindowBorders(wm.focused_Window);
+    }
+    XSync(wm.display, false);
+}
+
 }
 
 void applyRules(Client *c){
@@ -1519,6 +1639,8 @@ void applyRules(Client *c){
 bool isLayoutTiling(WindowLayout layout){
   switch(layout){
     case WINDOW_LAYOUT_TILED_MASTER:
+      return true;
+    case WINDOW_LAYOUT_TILED_CASCADE:
       return true;
     case WINDOW_LAYOUT_FLOATING:
       return false;

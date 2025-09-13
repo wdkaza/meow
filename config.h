@@ -1,4 +1,5 @@
 #pragma once
+#include <X11/X.h>
 #include <limits.h>
 #include <stdbool.h> // xD ignore this way of doing things, 
 #include "structs.h"
@@ -24,8 +25,9 @@ static char *screenshot[] = {"scrot", NULL};
 
 // all actions you can find below
 //
-// spawn,                 (value required), (pretty much executes commands so can be used for them too like adjusting volume)
-// kill,
+// spawn                  (value required), (pretty much executes commands so can be used for them too like adjusting volume)
+// kill
+// exitWM
 // addToLayout
 // moveWindowUp           (inLayout)
 // moveWindowDown         (inLayout)
@@ -62,7 +64,7 @@ struct KeyEvent keys[] = {
   //
   {MOD, XK_Return, spawn,                   {.v = terminal}},
   {MOD, XK_slash,  spawn,                   {.v = launcher}},
- {MOD, XK_p,      spawn,                   {.v = screenshot}},
+  {MOD, XK_p,      spawn,                   {.v = screenshot}},
   {MOD, XK_q,      kill,                    {0}},
   {MOD, XK_space,  addWindowToLayout,       {0}},
   {MOD, XK_Up,     moveWindowUp,            {0}},
@@ -77,6 +79,9 @@ struct KeyEvent keys[] = {
   {MOD, XK_f,      fullscreen,              {0}},
   {MOD, XK_r,      setWindowLayoutTiled,    {0}},
   {MOD, XK_t,      setWindowLayoutFloating, {0}},
+  {MOD, XK_o,      setWindowLayoutCascase,  {0}},
+
+  {MOD|ShiftMask,XK_q, exitWM,              {0}},
 
   // Layout related keybindings
   {MOD, XK_y,           increaseGapSize,       {.i = 5}},
