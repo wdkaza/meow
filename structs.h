@@ -41,6 +41,7 @@ void setWindowLayoutFloating(Arg *arg);
 void setWindowLayoutCascase(Arg *arg);
 void moveWindowUp(Arg *arg);
 void moveWindowDown(Arg *arg);
+void swapSlaveWithMaster(Arg *arg);
 void fullscreen(Arg *arg);
 void disableBar(Arg *arg);
 void enableBar(Arg *arg);

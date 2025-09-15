@@ -31,6 +31,7 @@ static char *screenshot[] = {"scrot", NULL};
 // addToLayout
 // moveWindowUp           (inLayout)
 // moveWindowDown         (inLayout)
+// swapSlaveWithMaster
 // increaseVolume
 // decreaseVolume
 // muteVolume
@@ -69,6 +70,7 @@ struct KeyEvent keys[] = {
   {MOD, XK_space,  addWindowToLayout,       {0}},
   {MOD, XK_Up,     moveWindowUp,            {0}},
   {MOD, XK_Down,   moveWindowDown,          {0}},
+  {MOD, XK_e,      swapSlaveWithMaster,     {0}},
   {MOD, XK_F3,     increaseVolume,          {0}},
   {MOD, XK_F2,     decreaseVolume,          {0}},
   {MOD, XK_F1,     muteVolume,              {0}},

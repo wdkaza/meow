@@ -134,6 +134,7 @@ static bool isLayoutTiling(WindowLayout layout);
 static void FGetFixedPartialStrut(Window w);
 static void updateActiveWindow(Window w);
 static Client *getFocusedSlaveClient();
+static void swapMasterWithSlave(Client *client);
 
 static XWM wm;
 
@@ -797,6 +798,14 @@ void moveWindowUp(Arg *arg){ // TODO : lmaoo these are inverted
   moveClientDownLayout(&wm.client_windows[getClientIndex(focusedWindow)]);
 }
 
+
+void swapSlaveWithMaster(Arg *arg){
+  (void) arg;
+  Window focusedWindow = wm.focused_Window;
+
+  swapMasterWithSlave(&wm.client_windows[getClientIndex(focusedWindow)]);
+}
+
 void fullscreen(Arg *arg){
   (void)arg;
   Window focusedWindow = wm.focused_Window;
@@ -1380,44 +1389,79 @@ Atom* findAtomPtrRange(Atom* ptr1, Atom* ptr2, Atom val){
 }
 
 void moveClientUpLayout(Client *client){
-  int32_t clientIndex = getClientIndex(client->win);
-  if(clientIndex == -1 || wm.clients_count <= 1) return;
+  if(wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER || wm.currentLayout == WINDOW_LAYOUT_FLOATING){
+    int32_t clientIndex = getClientIndex(client->win);
+    if(clientIndex == -1 || wm.clients_count <= 1) return;
 
-  int32_t targetIndex = -1;
-  for(uint32_t i = 1; i < wm.clients_count; i++){
-    int32_t idx = (clientIndex + i) % wm.clients_count;
-    if(wm.client_windows[idx].desktopIndex == client->desktopIndex){
-      targetIndex = idx;
-      break;
+    int32_t targetIndex = -1;
+    for(uint32_t i = 1; i < wm.clients_count; i++){
+      int32_t idx = (clientIndex + i) % wm.clients_count;
+      if(wm.client_windows[idx].desktopIndex == client->desktopIndex){
+        targetIndex = idx;
+        break;
+      }
     }
+    if(targetIndex == -1) return;
+
+    Client tmp = wm.client_windows[clientIndex];
+    wm.client_windows[clientIndex] = wm.client_windows[targetIndex];
+    wm.client_windows[targetIndex] = tmp;
+
+    retileLayout();
   }
-  if(targetIndex == -1) return;
-
-  Client tmp = wm.client_windows[clientIndex];
-  wm.client_windows[clientIndex] = wm.client_windows[targetIndex];
-  wm.client_windows[targetIndex] = tmp;
-
-  retileLayout();
 }
 
-void moveClientDownLayout(Client *client){
-  int32_t clientIndex = getClientIndex(client->win);
 
+
+void moveClientDownLayout(Client *client){
+  if(wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER || wm.currentLayout == WINDOW_LAYOUT_FLOATING){
+    int32_t clientIndex = getClientIndex(client->win);
+
+    if(clientIndex == -1 || wm.clients_count <= 1) return;
+
+    int32_t targetIndex = -1;
+    for(uint32_t i = 1; i < wm.clients_count; i++){
+      int32_t idx = (clientIndex - (int32_t)i + (int32_t)wm.clients_count) % (int32_t)wm.clients_count;
+      if(wm.client_windows[idx].desktopIndex == client->desktopIndex){
+        targetIndex = idx;
+        break;
+      }
+    }
+    if(targetIndex == -1) return;
+
+    Client tmp = wm.client_windows[clientIndex];
+    wm.client_windows[clientIndex] = wm.client_windows[targetIndex];
+    wm.client_windows[targetIndex] = tmp;
+    retileLayout();
+  }
+}
+
+void swapMasterWithSlave(Client *client){
+  int32_t clientIndex = getClientIndex(client->win);
   if(clientIndex == -1 || wm.clients_count <= 1) return;
 
-  int32_t targetIndex = -1;
-  for(uint32_t i = 1; i < wm.clients_count; i++){
-    int32_t idx = (clientIndex - (int32_t)i + (int32_t)wm.clients_count) % (int32_t)wm.clients_count;
-    if(wm.client_windows[idx].desktopIndex == client->desktopIndex){
-      targetIndex = idx;
-      break;
+  int32_t masterIndex = -1;
+  int32_t lastClientIndex = -1;
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+    if(wm.client_windows[i].desktopIndex == wm.currentDesktop && wm.client_windows[i].inLayout){
+      if(masterIndex == -1) masterIndex = i;
+      lastClientIndex = i;
     }
   }
-  if(targetIndex == -1) return;
+  if(masterIndex == -1) return;
 
-  Client tmp = wm.client_windows[clientIndex];
-  wm.client_windows[clientIndex] = wm.client_windows[targetIndex];
-  wm.client_windows[targetIndex] = tmp;
+  if(wm.currentLayout == WINDOW_LAYOUT_TILED_CASCADE && clientIndex == masterIndex){
+    Client tmp = wm.client_windows[masterIndex];
+    wm.client_windows[masterIndex] = wm.client_windows[lastClientIndex];
+    wm.client_windows[lastClientIndex] = tmp;
+    retileLayout();
+    return;
+  }
+
+  Client tmp = wm.client_windows[masterIndex];
+  wm.client_windows[masterIndex] = wm.client_windows[clientIndex];
+  wm.client_windows[clientIndex] = tmp;
+
   retileLayout();
 }
 
