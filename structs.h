@@ -39,6 +39,8 @@ void resetMasterGapSize(Arg *arg);
 void setWindowLayoutTiled(Arg *arg);
 void setWindowLayoutFloating(Arg *arg);
 void setWindowLayoutCascase(Arg *arg);
+void moveSlavesStackForward(Arg *arg);
+void moveSlavesStackBack(Arg *arg);
 void moveWindowUp(Arg *arg);
 void moveWindowDown(Arg *arg);
 void swapSlaveWithMaster(Arg *arg);

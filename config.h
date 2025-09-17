@@ -44,6 +44,8 @@ static char *screenshot[] = {"scrot", NULL};
 // decreaseMasterGapSize  (value required) value = step size (default 40)
 // increaseSlaveHeight    (value required) value = step size
 // decreaseSlaveHeight    (value required) value = step size
+// moveSlaveStackForward
+// moveSlaveStackBack
 // resetMasterGapSize     (sets the gap to 0, master window takes half ot the screen)
 // cycleWindows
 // fullscreen             
@@ -85,6 +87,8 @@ struct KeyEvent keys[] = {
 
   {MOD|ShiftMask,XK_q, exitWM,              {0}},
 
+
+
   // Layout related keybindings
   {MOD, XK_y,           increaseGapSize,       {.i = 5}},
   {MOD, XK_u,           decreaseGapSize,       {.i = 5}},
@@ -93,6 +97,8 @@ struct KeyEvent keys[] = {
   {MOD|ShiftMask, XK_o, resetMasterGapSize,    {0}},
   {MOD|ShiftMask, XK_s, increaseSlaveHeight,   {.i = 20}},
   {MOD|ShiftMask, XK_d, decreaseSlaveHeight,   {.i = 20}},
+  {MOD|ShiftMask, XK_w, moveSlavesStackForward, {0}},
+  {MOD|ShiftMask, XK_e, moveSlavesStackBack,  {0}},
 
 
   // desktop related keybindings

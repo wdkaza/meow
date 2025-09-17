@@ -34,6 +34,8 @@ But if you'd like to see this project get finished someday give it a star and i 
 
 - [ ] (Priority bug)Killing bolybar will not readjust the config to account for no bar
 - [ ] (Priority bug)Firefox pop-ups act weird, spawning at old locations
+- [ ] Opening too many windows in cascade having small windowGap, masterGap will result in windows flying off screen
+- [ ] Cascade code is way too messy xD, doesnt affect performance, etc but would be nice to clean it up heavily
 - [ ] exitWM doesnt clean up memory, resulting in crashing the next session after a few minutes or so
 - [x] Launching firefox(maybe any window) has a small chance to spawn a 0,0 ignoring the wm(temp fix : force quit with ctrl+q and it only happends on startup for me sometimes)
 - [x] Opening a sub window? maybe thats what its called of a window, example in discord [add file] will not map it(thunar) correctly for some reason

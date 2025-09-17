@@ -31,8 +31,6 @@
 #define MAX(a, b) ((a) > (b) ? (a) : b)
 #define CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
-
-
 static unsigned int numlockmask = 0;
 #define MODMASK(mask) (mask & ~(numlockmask | LockMask) & (ShiftMask|ControlMask|Mod1Mask|Mod2Mask|Mod3Mask|Mod4Mask|Mod5Mask))
 #define LENGTH(X)     (sizeof X / sizeof X[0])
@@ -135,6 +133,9 @@ static void FGetFixedPartialStrut(Window w);
 static void updateActiveWindow(Window w);
 static Client *getFocusedSlaveClient();
 static void swapMasterWithSlave(Client *client);
+static void moveSlavesStackUp(Client *client);
+static void moveSlavesStackDown(Client *client);
+static void fixFocusForCascade();
 
 static XWM wm;
 
@@ -806,6 +807,20 @@ void swapSlaveWithMaster(Arg *arg){
   swapMasterWithSlave(&wm.client_windows[getClientIndex(focusedWindow)]);
 }
 
+void moveSlavesStackForward(Arg *arg){
+  (void)arg;
+  Window focusedWindow = wm.focused_Window;
+
+  moveSlavesStackUp(&wm.client_windows[getClientIndex(focusedWindow)]);
+}
+
+void moveSlavesStackBack(Arg *arg){
+  (void)arg;
+  Window focusedWindow = wm.focused_Window;
+
+  moveSlavesStackDown(&wm.client_windows[getClientIndex(focusedWindow)]);
+}
+
 void fullscreen(Arg *arg){
   (void)arg;
   Window focusedWindow = wm.focused_Window;
@@ -876,7 +891,6 @@ void cycleWindows(Arg *arg){
         uint32_t next = (i + 1) % cycleCount;
         setFocusToWindow(wm.client_windows[cycle[next]].win);
         found = true;
-        break;
       }
     }
     if(!found){
@@ -1436,6 +1450,86 @@ void moveClientDownLayout(Client *client){
   }
 }
 
+void moveSlavesStackUp(Client *client){
+  (void)client;
+  int32_t indices[CLIENT_WINDOW_CAP];
+  int32_t count = 0;
+  int32_t masterIndex = -1;
+
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+    if(wm.client_windows[i].desktopIndex == wm.currentDesktop && wm.client_windows[i].inLayout){
+      masterIndex = (int32_t)i;
+      break;
+    }
+  }
+  if(masterIndex == -1) return;
+
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+    if((int32_t)i == masterIndex) continue;
+      if(wm.client_windows[i].desktopIndex == wm.currentDesktop && wm.client_windows[i].inLayout){
+        indices[count++] = (int32_t)i;
+      }
+  }
+  if(count <= 1) return;
+
+  Client tmp = wm.client_windows[indices[0]];
+  for(int32_t k = 0; k < count - 1; k++){
+    wm.client_windows[indices[k]] = wm.client_windows[indices[k + 1]];
+  }
+  wm.client_windows[indices[count - 1]] = tmp;
+  retileLayout();
+  if(wm.currentLayout == WINDOW_LAYOUT_TILED_CASCADE){
+    fixFocusForCascade();
+  }
+}
+
+void moveSlavesStackDown(Client *client){
+  (void)client;
+  int32_t indices[CLIENT_WINDOW_CAP];
+  int32_t count = 0;
+  int32_t masterIndex = -1;
+
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+    if(wm.client_windows[i].desktopIndex == wm.currentDesktop && wm.client_windows[i].inLayout){
+      masterIndex = (int32_t)i;
+      break;
+    }
+  }
+  if(masterIndex == -1) return;
+
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+    if((int32_t)i == masterIndex) continue;
+      if(wm.client_windows[i].desktopIndex == wm.currentDesktop && wm.client_windows[i].inLayout){
+        indices[count++] = (int32_t)i;
+      }
+  }
+  if(count <= 1) return;
+
+  Client tmp = wm.client_windows[indices[count - 1]];
+  for(int32_t k = count - 1; k > 0; k--){
+    wm.client_windows[indices[k]] = wm.client_windows[indices[k - 1]];
+  }
+  wm.client_windows[indices[0]] = tmp;
+  retileLayout();
+  if(wm.currentLayout == WINDOW_LAYOUT_TILED_CASCADE){
+    fixFocusForCascade();
+  }
+}
+
+void fixFocusForCascade(){
+  int32_t lastIndex = -1;
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+    if(wm.client_windows[i].desktopIndex == wm.currentDesktop && wm.client_windows[i].inLayout){
+      setFocusToWindow(wm.client_windows[i].win);
+      lastIndex = i;
+    }
+  }
+  if(lastIndex != -1){
+    setFocusToWindow(wm.client_windows[lastIndex].win);
+  }
+}
+
+
 void swapMasterWithSlave(Client *client){
   int32_t clientIndex = getClientIndex(client->win);
   if(clientIndex == -1 || wm.clients_count <= 1) return;
@@ -1464,6 +1558,8 @@ void swapMasterWithSlave(Client *client){
 
   retileLayout();
 }
+
+
 
 Client *getFocusedSlaveClient(){
   if(wm.focused_Window == None) return NULL;
@@ -1574,19 +1670,19 @@ void retileLayout(){
     XSetWindowBorderWidth(wm.display, master->frame, BORDER_WIDTH);
     master->fullscreen = false;
 
-    int stackX = (wm.screenWidth / 2 + (wm.conf.windowGap / 2)) + wm.conf.masterWindowGap;
+    int stackX = (wm.screenWidth / 2 + (wm.conf.windowGap / 3)) + wm.conf.masterWindowGap;
 
-    int offsetX = wm.conf.windowGap;
-    int offsetY = wm.conf.windowGap;
+    int offsetX = wm.conf.windowGap / 2;
+    int offsetY = wm.conf.windowGap / 2;
 
-    if(offsetX < 24) offsetX = 24;
-    if(offsetY < 24) offsetY = 24;
+    if(offsetX < 20) offsetX = 20;
+    if(offsetY < 20) offsetY = 20;
 
     int baseWidth  = wm.screenWidth - stackX - wm.conf.windowGap - (client_count - 2) * offsetX;
     int baseHeight = availableHeight - 2 * wm.conf.windowGap - (client_count - 2) * offsetY;
 
-    if(baseWidth < 100) baseWidth = 100;
-    if(baseHeight < 60) baseHeight = 60;
+    if(baseWidth < 50) baseWidth = 50;
+    if(baseHeight < 30) baseHeight = 30;
 
     for(uint32_t i = 1; i < client_count; i++){
       Client *client = clients[i];
@@ -1698,5 +1794,3 @@ int main(void){
   xwm_run();
   return 0;
 }
-
-
