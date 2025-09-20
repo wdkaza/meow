@@ -861,6 +861,7 @@ void cycleWindows(Arg *arg){
   }
   // yeah... i know its a bad way of doing it..
   else if(wm.currentLayout == WINDOW_LAYOUT_TILED_CASCADE){
+    fixFocusForCascade();
     int32_t masterIndex = -1;
     int32_t lastClientIndex = -1;
 
@@ -1520,12 +1521,12 @@ void fixFocusForCascade(){
   int32_t lastIndex = -1;
   for(uint32_t i = 0; i < wm.clients_count; i++){
     if(wm.client_windows[i].desktopIndex == wm.currentDesktop && wm.client_windows[i].inLayout){
-      setFocusToWindow(wm.client_windows[i].win);
+      XRaiseWindow(wm.display, wm.client_windows[i].win);
       lastIndex = i;
     }
   }
   if(lastIndex != -1){
-    setFocusToWindow(wm.client_windows[lastIndex].win);
+    XRaiseWindow(wm.display, wm.client_windows[lastIndex].win);
   }
 }
 

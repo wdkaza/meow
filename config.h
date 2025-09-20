@@ -1,13 +1,13 @@
 #pragma once
 #include <X11/X.h>
 #include <limits.h>
-#include <stdbool.h> // xD ignore this way of doing things, 
+#include <stdbool.h> // xD ignore this way of doing things 
 #include "structs.h"
 
 #define START_WINDOW_GAP 20
 #define DESKTOP_COUNT 10
 #define BORDER_WIDTH 2
-#define BORDER_FOCUSED_WIDTH 2 // currently a bit broken visually(layout will look ugly)
+#define BORDER_FOCUSED_WIDTH 2 // currently a bit broken visually(will look ugly)
 #define BORDER_COLOR 0x1e1e1e
 #define BORDER_FOCUSED_COLOR 0xADD8E6
 
@@ -55,74 +55,76 @@ static char *screenshot[] = {"scrot", NULL};
 // transferWindowToDesktop(value required) value = desktop number
 
 // [MOD-KEY, KEY, ACTION, VALUE(if none set to 0)]
-// [MOD-KEY|ShiftMask, ...]   for mod+shift keybinds
-// [MOD-KEY|ControlMask, ...] for mod+control keybinds
+// [MOD-KEY|ShiftMask,   ...]   for mod+shift keybinds
+// [MOD-KEY|ControlMask, ...]   for mod+control keybinds
+
+// IMPORTANT !!!
+// you can find the keys naming in structs.h file
+// IMPORTANT !!!
 
 struct KeyEvent keys[] = {
   //
-  // {MOD, XK_F3,  spawn,              {.v = (const char *[]){"pactl", "set-sink-volume", "@DEFAULT_SINK", "+5%", NULL}}}
+  // {MOD, XK_F3,  spawn,                   {.v = (const char *[]){"pactl", "set-sink-volume", "@DEFAULT_SINK", "+5%", NULL}}}
   // split args by coma and double quote them "arg"
   // ^^^ example of custom command ^^^
   // keeping it simple by using increaseVolume/decreaseVolume/muteVolume, etc instead of "spawn"
   //
-  {MOD, XK_Return, spawn,                   {.v = terminal}},
-  {MOD, XK_slash,  spawn,                   {.v = launcher}},
-  {MOD, XK_p,      spawn,                   {.v = screenshot}},
-  {MOD, XK_q,      kill,                    {0}},
-  {MOD, XK_space,  addWindowToLayout,       {0}},
-  {MOD, XK_Up,     moveWindowUp,            {0}},
-  {MOD, XK_Down,   moveWindowDown,          {0}},
-  {MOD, XK_e,      swapSlaveWithMaster,     {0}},
-  {MOD, XK_F3,     increaseVolume,          {0}},
-  {MOD, XK_F2,     decreaseVolume,          {0}},
-  {MOD, XK_F1,     muteVolume,              {0}},
-  {MOD, XK_F6,     increaseBrightness,      {0}},
-  {MOD, XK_F5,     decreaseBrightness,      {0}},
-  {MOD, XK_F7,     minBrightness,           {0}},
-  {MOD, XK_Tab,    cycleWindows,            {0}},
-  {MOD, XK_f,      fullscreen,              {0}},
-  {MOD, XK_r,      setWindowLayoutTiled,    {0}},
-  {MOD, XK_t,      setWindowLayoutFloating, {0}},
-  {MOD, XK_o,      setWindowLayoutCascase,  {0}},
+  {MOD, KeyReturn, spawn,                   {.v = terminal}},
+  {MOD, KeySlash,  spawn,                   {.v = launcher}},
+  {MOD, KeyP,      spawn,                   {.v = screenshot}},
+  {MOD, KeyQ,      kill,                    {0}},
+  {MOD, KeySpace,  addWindowToLayout,       {0}},
+  {MOD, KeyUp,     moveWindowUp,            {0}},
+  {MOD, KeyDown,   moveWindowDown,          {0}},
+  {MOD, KeyE,      swapSlaveWithMaster,     {0}},
+  {MOD, KeyF3,     increaseVolume,          {0}},
+  {MOD, KeyF2,     decreaseVolume,          {0}},
+  {MOD, KeyF1,     muteVolume,              {0}},
+  {MOD, KeyF6,     increaseBrightness,      {0}},
+  {MOD, KeyF5,     decreaseBrightness,      {0}},
+  {MOD, KeyF7,     minBrightness,           {0}},
+  {MOD, KeyTab,    cycleWindows,            {0}},
+  {MOD, KeyF,      fullscreen,              {0}},
+  {MOD, KeyR,      setWindowLayoutTiled,    {0}},
+  {MOD, KeyT,      setWindowLayoutFloating, {0}},
+  {MOD, KeyO,      setWindowLayoutCascase,  {0}},
 
-  {MOD|ShiftMask,XK_q, exitWM,              {0}},
+  {MOD|ShiftMask,KeyQ, exitWM,              {0}},
 
 
 
   // Layout related keybindings
-  {MOD, XK_y,           increaseGapSize,       {.i = 5}},
-  {MOD, XK_u,           decreaseGapSize,       {.i = 5}},
-  {MOD|ShiftMask, XK_y, increaseMasterGapSize, {.i = 40}},
-  {MOD|ShiftMask, XK_u, decreaseMasterGapSize, {.i = 40}},
-  {MOD|ShiftMask, XK_o, resetMasterGapSize,    {0}},
-  {MOD|ShiftMask, XK_s, increaseSlaveHeight,   {.i = 20}},
-  {MOD|ShiftMask, XK_d, decreaseSlaveHeight,   {.i = 20}},
-  {MOD|ShiftMask, XK_w, moveSlavesStackForward, {0}},
-  {MOD|ShiftMask, XK_e, moveSlavesStackBack,  {0}},
+  {MOD, KeyY,           increaseGapSize,       {.i = 5}},
+  {MOD, KeyU,           decreaseGapSize,       {.i = 5}},
+  {MOD|ShiftMask, KeyY, increaseMasterGapSize, {.i = 40}},
+  {MOD|ShiftMask, KeyU, decreaseMasterGapSize, {.i = 40}},
+  {MOD|ShiftMask, KeyS, increaseSlaveHeight,   {.i = 20}},
+  {MOD|ShiftMask, KeyD, decreaseSlaveHeight,   {.i = 20}},
+  {MOD|ShiftMask, KeyO, resetMasterGapSize,    {0}},
+  {MOD|ShiftMask, KeyW, moveSlavesStackForward,{0}},
+  {MOD|ShiftMask, KeyE, moveSlavesStackBack,   {0}},
 
 
   // desktop related keybindings
-  {MOD, XK_1,      switchDesktop,           {.i = 1}},
-  {MOD, XK_2,      switchDesktop,           {.i = 2}},
-  {MOD, XK_3,      switchDesktop,           {.i = 3}},
-  {MOD, XK_4,      switchDesktop,           {.i = 4}},
-  {MOD, XK_5,      switchDesktop,           {.i = 5}},
-  {MOD, XK_6,      switchDesktop,           {.i = 6}},
-  {MOD, XK_7,      switchDesktop,           {.i = 7}},
-  {MOD, XK_8,      switchDesktop,           {.i = 8}},
-  {MOD, XK_9,      switchDesktop,           {.i = 9}},
-  //{MOD, XK_0,      switchDesktop,           {.i = 0}},
+  {MOD, Key1,      switchDesktop,           {.i = 1}},
+  {MOD, Key2,      switchDesktop,           {.i = 2}},
+  {MOD, Key3,      switchDesktop,           {.i = 3}},
+  {MOD, Key4,      switchDesktop,           {.i = 4}},
+  {MOD, Key5,      switchDesktop,           {.i = 5}},
+  {MOD, Key6,      switchDesktop,           {.i = 6}},
+  {MOD, Key7,      switchDesktop,           {.i = 7}},
+  {MOD, Key8,      switchDesktop,           {.i = 8}},
+  {MOD, Key9,      switchDesktop,           {.i = 9}},
 
-  {MOD|ShiftMask, XK_1, transferWindowToDesktop, {.i = 1}},
-  {MOD|ShiftMask, XK_2, transferWindowToDesktop, {.i = 2}},
-  {MOD|ShiftMask, XK_3, transferWindowToDesktop, {.i = 3}},
-  {MOD|ShiftMask, XK_4, transferWindowToDesktop, {.i = 4}},
-  {MOD|ShiftMask, XK_5, transferWindowToDesktop, {.i = 5}},
-  {MOD|ShiftMask, XK_6, transferWindowToDesktop, {.i = 6}},
-  {MOD|ShiftMask, XK_7, transferWindowToDesktop, {.i = 7}},
-  {MOD|ShiftMask, XK_8, transferWindowToDesktop, {.i = 8}},
-  {MOD|ShiftMask, XK_9, transferWindowToDesktop, {.i = 9}},
-  //{MOD|ShiftMask, XK_0, transferWindowToDesktop, {.i = 0}}
+  {MOD|ShiftMask, Key1, transferWindowToDesktop, {.i = 1}},
+  {MOD|ShiftMask, Key2, transferWindowToDesktop, {.i = 2}},
+  {MOD|ShiftMask, Key3, transferWindowToDesktop, {.i = 3}},
+  {MOD|ShiftMask, Key4, transferWindowToDesktop, {.i = 4}},
+  {MOD|ShiftMask, Key5, transferWindowToDesktop, {.i = 5}},
+  {MOD|ShiftMask, Key6, transferWindowToDesktop, {.i = 6}},
+  {MOD|ShiftMask, Key7, transferWindowToDesktop, {.i = 7}},
+  {MOD|ShiftMask, Key8, transferWindowToDesktop, {.i = 8}},
+  {MOD|ShiftMask, Key9, transferWindowToDesktop, {.i = 9}},
 };
 
 

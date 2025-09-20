@@ -11,5 +11,3 @@ meow: meow.c
 clean:
 	rm -f meow
 	rm -f /usr/bin/meow
-
-# weird bug with ft2build.h need to use this so it compiles
