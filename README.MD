@@ -4,7 +4,7 @@ Minimal, no desktop bloat, no unnecessary features. Just clean.<br><br><br>
 ![previewNord2](screenshots/Nord2.png)<br>
 ![preview2](screenshots/2025-09-10-175526_1920x1080_scrot.png)<br>
 (more screenshots in screenshots folder, will add more here soon)
-<br><br><br>
+<br>
 ## Features<br>
 
 - [x] Fullscreen  
@@ -47,10 +47,12 @@ exec meow
 ## General information
 
 If you will encounter any bug or will have any questions feel free to add me at discord 'wdd.'  
-Default keybinds are afwul, i would heavily recommend changing them to your own liking  
-You can find more details about the confing inside config.h
+Default keybinds are afwul, i would heavily recommend changing them to your own liking   
+You can find more details about the confing inside config.h   
+  
 (from Fluorite) If java apps are clunky, you can add 'export _JAVA_AWT_WM_NONREPARENTING=1' to your .xinitrc before meow execution   
-also thanks for everyone who is supporting the mini project i decided todo, you are all making my day!⭐  
+  
+and thanks for everyone who is supporting the mini project i decided todo, you are all making my day!⭐  
 
 ## Bugs(not important category, some bugs are outdated)
 
