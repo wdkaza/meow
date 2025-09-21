@@ -10,6 +10,7 @@
 #define BORDER_FOCUSED_WIDTH 2 // currently a bit broken visually(will look ugly)
 #define BORDER_COLOR 0x1e1e1e
 #define BORDER_FOCUSED_COLOR 0xADD8E6
+#define XRESOURCES_AUTO_RELOAD true
 
 #define BG_COLOR 0x000000
 

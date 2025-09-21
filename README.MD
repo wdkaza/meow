@@ -14,12 +14,13 @@ Minimal, no desktop bloat, no unnecessary features. Just clean.<br><br><br>
 - [x] Easy config  
 - [x] Bars support  
 - [x] Some EWMH support  
+- [x] Xrecourses (recompiling)
 - [ ] Hover with mouse to select windows  
 - [ ] Multiple monitors  
 
 
 # Instalation
- 
+
 ## 1. Dependencies
  
 Arch linux:  
@@ -38,10 +39,19 @@ make install
 ## 3. .xinitrc example, for autostart
  
 ```sh
-nitrogen --restore  
-polybar &  
-picom &  
-exec meow  
+[[ -f ~/.Xresources ]] && xrdb -merge -I$HOME ~/.Xresources
+setxkbmap -layout en
+picom &
+exec meow
+```
+
+## 4. .Xrecourses example
+
+```sh
+wm.borderWidth: 2
+wm.borderFocused: 0xADD8E6
+wm.borderUnfocused: 0x1e1e1e
+wm.windowGap: 20
 ```
 
 ## General information
@@ -58,6 +68,8 @@ and thanks for everyone who is supporting the mini project i decided todo, you a
 
 - [ ] (Priority bug)Killing bolybar will not readjust the config to account for no bar
 - [ ] (Priority bug)Firefox pop-ups act weird, spawning at old locations
+- [ ] Xrecourses dont work until you recompile them manually once
+- [ ] Small visual issue with fixCascadeLayout function
 - [ ] Opening too many windows in cascade/master having small windowGap, masterGap will result in windows flying off screen
 - [ ] Cascade code is way too messy xD, doesnt affect performance, etc but would be nice to clean it up heavily
 - [ ] exitWM doesnt clean up memory, resulting in crashing the next session after a few minutes or so
