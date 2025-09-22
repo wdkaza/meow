@@ -268,10 +268,6 @@ void reloadWindows(){
     int borderColor = (client->win == wm.focused_Window) ? wm.conf.borderFocused : wm.conf.borderUnfocused;
     XSetWindowBorder(wm.display, client->frame, borderColor);
     XSetWindowBorderWidth(wm.display, client->frame, wm.conf.borderWidth);
-
-    if(client->inLayout){
-      XRaiseWindow(wm.display, client->win);
-    }
   }
   if(wm.focused_Window != None){
     XSetInputFocus(wm.display, wm.focused_Window, RevertToPointerRoot, CurrentTime);
@@ -1661,20 +1657,67 @@ void moveSlavesStackDown(Client *client){
 }
 
 void fixFocusForCascade(){
-  int32_t lastIndex = -1;
+  Window restack[CLIENT_WINDOW_CAP];
+  int32_t indices[CLIENT_WINDOW_CAP];
+  int count = 0;
+  int32_t masterIndex = -1;
+
   for(uint32_t i = 0; i < wm.clients_count; i++){
     if(wm.client_windows[i].desktopIndex == wm.currentDesktop && wm.client_windows[i].inLayout){
-      //XRaiseWindow(wm.display, wm.client_windows[i].win);
-      //XSetInputFocus(wm.display, wm.client_windows[i].win, RevertToParent, CurrentTime);
-      setFocusToWindow(wm.client_windows[i].win);
-      lastIndex = i;
+      masterIndex = (int32_t)i;
+      break;
     }
   }
-  if(lastIndex != -1){
-    //XRaiseWindow(wm.display, wm.client_windows[lastIndex].win);
-    //XSetInputFocus(wm.display, wm.client_windows[lastIndex].win, RevertToParent, CurrentTime);
-    //setFocusToWindow(wm.client_windows[lastIndex].win);
+
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+    if(wm.client_windows[i].desktopIndex == wm.currentDesktop && wm.client_windows[i].inLayout){
+      Window frame = wm.client_windows[i].frame ? wm.client_windows[i].frame : wm.client_windows[i].win;
+      restack[count] = frame;
+      indices[count] = (int32_t)i;
+      count++;
+    }
   }
+
+  if(count == 0) return;
+  
+  for(int a = 0; a < count / 2; a++){// confusing loop lol
+    int b = count - 1 - a;
+    Window tmpw = restack[a];
+    restack[a] = restack[b];
+    restack[b] = tmpw;
+
+    int32_t tmpi = indices[a];
+    indices[a] = indices[b];
+    indices[b] = tmpi;
+  }
+ 
+  XRestackWindows(wm.display, restack, count); 
+
+  int32_t focusClientIdx = -1;
+  for(int i = 0; i < count; i++){
+    if(indices[i] != masterIndex){
+      focusClientIdx = indices[i];// window below?(or above depending on how you look at it) other slaves
+      break;
+    }
+  }
+
+  if(focusClientIdx == -1){
+    if(masterIndex != -1){
+      focusClientIdx = masterIndex;
+    } 
+    else{
+      focusClientIdx = indices[count - 1];
+    }
+  }
+
+  if(focusClientIdx >= 0){
+    Window focusWin = wm.client_windows[focusClientIdx].win;
+    if(wm.focused_Window != focusWin){
+      updateWindowBorders(focusWin);
+      XSetInputFocus(wm.display, focusWin, RevertToParent, CurrentTime);
+    }
+  }
+
   XFlush(wm.display);
 }
 
