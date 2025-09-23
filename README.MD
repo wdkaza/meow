@@ -1,8 +1,8 @@
 # meow
 A very lightweight and minimal X window manager made in C, insipired by i3, Fluorite, dwm and ragnarWM.<br>
 Minimal, no desktop bloat, no unnecessary features. Just clean.<br><br><br>
-![previewNord2](screenshots/Nord2.png)<br>
-![preview2](screenshots/2025-09-10-175526_1920x1080_scrot.png)<br>
+![previewNord2](screenshots/flashbang.png)<br>
+![preview2](screenshots/Nord2.png)<br>
 (more screenshots in screenshots folder, will add more here soon)
 <br>
 ## Features<br>

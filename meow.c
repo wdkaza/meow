@@ -163,7 +163,7 @@ void reloadXresources(){
   reloadWindows();
 }
 
-void loadXResources(){ // massive thanks to FluoriteWM for XRecources pieces of code
+void loadXResources(){ // massive thanks to FluoriteWM for XResources pieces of code
   char *xrm;
   char *type;
   XrmDatabase xdb;
@@ -185,12 +185,16 @@ void loadXResources(){ // massive thanks to FluoriteWM for XRecources pieces of 
   }
   if(XrmGetResource(xdb, "wm.borderFocused", "*", &type, &xval)){
     if(xval.addr){
-      wm.conf.borderFocused = strtoul(xval.addr, NULL, 0);
+      char *addr = xval.addr;
+      if(*addr == '#') addr++;
+      wm.conf.borderFocused = strtoul(addr, NULL, 16);
     }
   }
   if(XrmGetResource(xdb, "wm.borderUnfocused", "*", &type, &xval)){
     if(xval.addr){
-      wm.conf.borderUnfocused = strtoul(xval.addr, NULL, 0);
+      char *addr = xval.addr;
+      if(*addr == '#') addr++;
+      wm.conf.borderUnfocused = strtoul(addr, NULL, 16);
     }
   }
   if(XrmGetResource(xdb, "wm.windowGap", "*", &type, &xval)){
@@ -204,7 +208,7 @@ void loadXResources(){ // massive thanks to FluoriteWM for XRecources pieces of 
   free(xrm);
 }
 
-void *inotifyXresources(void *arg){ // massive thanks to FluoriteWM for XRecources pieces of code
+void *inotifyXresources(void *arg){ // massive thanks to FluoriteWM for XResources pieces of code
   (void)arg;
   const char *filename = ".Xresources";
   char *home = getenv("HOME");
@@ -234,6 +238,7 @@ void *inotifyXresources(void *arg){ // massive thanks to FluoriteWM for XRecourc
       i += EVENT_SIZE + event->len;
     }
   }
+
   close(fd);
   return NULL;
 }
@@ -706,6 +711,7 @@ void handleConfigureRequst(XEvent *ev){
   changes.height = e->height;
   changes.sibling = e->above;
   changes.stack_mode = e->detail;
+
   if(clientWindowExists(e->window)){
     Window frame_win = getFrameWindow(e->window);
     if(frame_win != 0){
@@ -1796,9 +1802,8 @@ void retileLayout(){
   int startY = wm.conf.topBorder;
 
   if(wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER){
-
-
     Client *master = clients[0];
+
     if(client_count == 1){
       XMoveWindow(wm.display, master->frame, wm.conf.windowGap - wm.conf.borderWidth, startY + wm.conf.windowGap - wm.conf.borderWidth);
       int frameWidth = wm.screenWidth - 2 * wm.conf.windowGap;
@@ -1844,6 +1849,7 @@ void retileLayout(){
   }
   else if(wm.currentLayout == WINDOW_LAYOUT_TILED_CASCADE){
     Client *master = clients[0];
+
     if(client_count == 1){
       XMoveWindow(wm.display, master->frame, wm.conf.windowGap - wm.conf.borderWidth, startY + wm.conf.windowGap - wm.conf.borderWidth);
       int frameWidth = wm.screenWidth - 2 * wm.conf.windowGap;
@@ -1954,6 +1960,7 @@ void applyRules(Client *c){
   
   Atom aStateNet = XInternAtom(wm.display, "_NET_WM_STATE", false);
   Atom aStateFs =  XInternAtom(wm.display, "_NET_WM_STATE_FULLSCREEN", false);
+
   if(XGetWindowProperty(wm.display, c->win, aStateNet, 0, (~0L), false, AnyPropertyType, &actualType, &actualFormat, &nitems, &bytes_after, &prop) == Success && prop){
     Atom *states = (Atom*)prop;
     for(unsigned long i = 0; i < nitems; ++i){
