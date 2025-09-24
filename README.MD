@@ -13,6 +13,7 @@ Minimal, no desktop bloat, no unnecessary features. Just clean.<br><br><br>
 - [x] Configurable gaps between windows in layouts  
 - [x] Easy config  
 - [x] Bars support  
+- [x] layout IPC module for polybar
 - [x] Some EWMH support  
 - [x] Xrecourses (recompiling)
 - [ ] Hover with mouse to select windows  

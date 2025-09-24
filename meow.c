@@ -151,7 +151,7 @@ static void reloadXresources();
 static void loadConfig();
 static void *inotifyXresources(void *arg);
 static void reloadWindows();
-
+static void polybarLayoutIPC(int num);
 static XWM wm;
 
 void reloadXresources(){
@@ -290,6 +290,13 @@ int xwm_error_handler(Display *dpy, XErrorEvent *e){
   XGetErrorText(dpy, e->error_code, buf, sizeof(buf));
   fprintf(stderr, "x error: %s (request %d, resource: %lu)\n", buf, e->error_code, e->resourceid);
   return 0;
+}
+
+void polybarLayoutIPC(int num){
+  char command[256];
+  snprintf(command, sizeof(command), "polybar-msg action \"#meow_layout.hook.%d\"", num);
+  strcat(command, " &");
+  if(system(command) == -1) printf("failed to execute command/program\n");
 }
 
 void initDesktops(){
@@ -1788,6 +1795,7 @@ Client *getFocusedSlaveClient(){
 }
 
 void retileLayout(){
+  polybarLayoutIPC(wm.currentLayout);
 
   Client *clients[CLIENT_WINDOW_CAP];
   uint32_t client_count = 0;
