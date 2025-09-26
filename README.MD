@@ -2,8 +2,8 @@
 A very lightweight and minimal X window manager made in C, insipired by i3, Fluorite, dwm and ragnarWM.<br>
 Minimal, no desktop bloat, no unnecessary features. Just clean.<br><br><br>
 ![previewNord2](screenshots/flashbang.png)<br>
-![preview2](screenshots/Nord2.png)<br>
-(more screenshots in screenshots folder, will add more here soon)
+![preview2](screenshots/darkflashbang.png)<br>
+(more screenshots in screenshots folder)
 <br>
 ## Features<br>
 
@@ -22,48 +22,10 @@ Minimal, no desktop bloat, no unnecessary features. Just clean.<br><br><br>
 
 # Instalation
 
-## 1. Dependencies
- 
-Arch linux:  
-``` sh
-sudo pacman -S xorg xdotool libxft libxcomposite libxcursor libxrandr  
-```
- 
-## 2. Building and installing
- 
-Modify the config-(config.h) to your liking, and after doing that run (with sudo if necessary)  
- 
-```sh
-make install  
-```
- 
-## 3. .xinitrc example, for autostart
- 
-```sh
-[[ -f ~/.Xresources ]] && xrdb -merge -I$HOME ~/.Xresources
-setxkbmap -layout en
-picom &
-exec meow
-```
-
-## 4. .Xrecourses example
-
-```sh
-wm.borderWidth: 2
-wm.borderFocused: 0xADD8E6
-wm.borderUnfocused: 0x1e1e1e
-wm.windowGap: 20
-```
-
-## General information
-
-If you will encounter any bug or will have any questions feel free to add me at discord 'wdd.'  
-Default keybinds are afwul, i would heavily recommend changing them to your own liking   
-You can find more details about the confing inside config.h   
-  
-(from Fluorite) If java apps are clunky, you can add 'export _JAVA_AWT_WM_NONREPARENTING=1' to your .xinitrc before meow execution   
-  
-and thanks for everyone who is supporting the mini project i decided todo, you are all making my day!⭐  
+Okay, so i had an installationg guide at some point but i quickly found out that  
+the meow is still slightly far away from being stable to use, i couldnt launch steam it behaved weirdly  
+shortly, ⚠️It still has alot of bugs i would like to fix them before providing a way to install it⚠️
+But if you'd like to see this project get finished someday give it a star and i will try my best to finish it⭐
 
 ## Bugs(not important category, some bugs are outdated)
 

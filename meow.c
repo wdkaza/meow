@@ -1162,9 +1162,7 @@ void handleMapRequest(XEvent *ev){
 
   int32_t idx = getClientIndex(e->window);
   if(idx == -1){
-    //fallback
     XMapWindow(wm.display, e->window);
-    setFocusToWindow(e->window);
     return;
   }
 
