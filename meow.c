@@ -716,18 +716,26 @@ void handleConfigureRequst(XEvent *ev){
   changes.y = e->y;
   changes.width = e->width;
   changes.height = e->height;
+  changes.border_width = e->border_width;
   changes.sibling = e->above;
   changes.stack_mode = e->detail;
 
-  if(clientWindowExists(e->window)){
-    Window frame_win = getFrameWindow(e->window);
-    if(frame_win != 0){
-    XConfigureWindow(wm.display, frame_win, e->value_mask, &changes);
-    XConfigureWindow(wm.display, e->window, e->value_mask, &changes);
+  int32_t index = getClientIndex(e->window); // im pretty sure something is wrong with this function
+  if(index != -1){
+    Window frame = wm.client_windows[index].frame;
+    if(frame != 0){
+      XConfigureWindow(wm.display, frame, e->value_mask, &changes);
+    }
+    else{
+      XConfigureWindow(wm.display, e->window, e->value_mask, &changes);
     }
   }
-  XConfigureWindow(wm.display, e->window, e->value_mask, &changes);
+  else{
+    XConfigureWindow(wm.display, e->window, e->value_mask, &changes);
+  }
+  retileLayout();
 }
+
 
 void handleConfigureNotify(XEvent *ev){
   XConfigureEvent *e = &ev->xconfigure;
@@ -735,7 +743,6 @@ void handleConfigureNotify(XEvent *ev){
   Window frame = getFrameWindow(e->window);
   XMoveResizeWindow(wm.display, frame, e->x, e->y, e->width, e->height);
 }
-
 
 void handleKeyPress(XEvent *ev){
   XKeyEvent *e = &ev->xkey;

@@ -16,6 +16,7 @@ Minimal, no desktop bloat, no unnecessary features. Just clean.<br><br><br>
 - [x] layout IPC module for polybar
 - [x] Some EWMH support  
 - [x] Xrecourses (recompiling)
+- [ ] 4 Corner resizing, and overall better feel for floating layout
 - [ ] Hover with mouse to select windows  
 - [ ] Multiple monitors  
 
@@ -31,13 +32,14 @@ But if you'd like to see this project get finished someday give it a star and i 
 
 - [ ] (Priority bug)Killing bolybar will not readjust the config to account for no bar
 - [ ] (Priority bug)Firefox pop-ups act weird, spawning at old locations
+- [ ] Something is broken with configureRequest, its fixed but new bugs appeared
 - [ ] Xrecourses dont work until you recompile them manually once
-- [ ] Small visual issue with fixCascadeLayout function
+- [x] Small visual issue with fixCascadeLayout function
 - [ ] Opening too many windows in cascade/master having small windowGap, masterGap will result in windows flying off screen
 - [ ] Cascade code is way too messy xD, doesnt affect performance, etc but would be nice to clean it up heavily
 - [ ] exitWM doesnt clean up memory, resulting in crashing the next session after a few minutes or so
 - [x] Launching firefox(maybe any window) has a small chance to spawn a 0,0 ignoring the wm(temp fix : force quit with ctrl+q and it only happends on startup for me sometimes)
 - [x] Opening a sub window? maybe thats what its called of a window, example in discord [add file] will not map it(thunar) correctly for some reason
-- [ ] While polybar is focused(for whatever reason) if you try to fullscreen it, wm crashes
+- [x] While polybar is focused(for whatever reason) if you try to fullscreen it, wm crashes
 - [ ] Fullscreening should probably unmap other windows, looks weird with transparancy
 - [ ] TODO. Will be adding more bugs that i encounter later, should have started keeping track of that earlier
