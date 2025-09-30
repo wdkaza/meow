@@ -307,6 +307,37 @@ void initDesktops(){
   }
 }
 
+void sendConfigureNotify(Client *c) { // ok this function is kinda pointless TODO : remove it and fix the bug normally
+  // the problem is that moving the window doesnt call configureNotify and i dont know why, yet, i will remove this later, for now kinda hotfix
+  XConfigureEvent ev;
+  ev.type = ConfigureNotify;
+  ev.display = wm.display;
+  ev.event = c->win;
+  ev.window = c->win; 
+
+  XWindowAttributes wa;
+  XGetWindowAttributes(wm.display, c->frame, &wa);
+  
+  ev.x = wa.x;
+  ev.y = wa.y;
+  ev.width = wa.width;
+  ev.height = wa.height;
+  ev.border_width = 0;
+  ev.above = None;
+  XSendEvent(wm.display, c->win, false, StructureNotifyMask, (XEvent *)&ev);
+}
+
+Window getToplevel(Window w){ // dont know if i will use this fucntion yet
+	while(1){
+		Window root, parent;
+		Window *children;
+		unsigned int nchildren;
+		if(!XQueryTree(wm.display, w, &root, &parent, &children, &nchildren) || parent == root || parent == 0) break;
+		w = parent;
+		if(children) XFree(children);
+	}
+	return w;
+}
 
 XWM xwm_init(){
   XWM wm = {0};
@@ -508,7 +539,6 @@ void xwm_run(){
   }
 }
 
-
 void handleClientMessage(XEvent *ev){
   if(ev->xclient.message_type == XInternAtom(wm.display, "_NET_CURRENT_DESKTOP", False)){
     changeDesktop((int)ev->xclient.data.l[0] + 1); 
@@ -523,6 +553,23 @@ void handleClientMessage(XEvent *ev){
           changeDesktop(windowDesktop);
         }
         setFocusToWindow(w);
+      }
+    }
+  }
+  else if(ev->xclient.message_type == XInternAtom(wm.display, "_NET_WM_STATE", False)){
+    Window w = ev->xclient.window;
+    Atom aStateFs = XInternAtom(wm.display, "_NET_WM_STATE_FULLSCREEN", False);
+    
+    if(ev->xclient.data.l[1] == (long)aStateFs || ev->xclient.data.l[2] == (long)aStateFs){
+      int32_t clientIndex = getClientIndex(w);
+      if(clientIndex != -1){
+        int action = ev->xclient.data.l[0];
+        if(action == 1 || (action == 2 && !wm.client_windows[clientIndex].fullscreen)){
+          setFullscreen(w);
+        }
+        else if(action == 0 || (action == 2 && wm.client_windows[clientIndex].fullscreen)){
+          unsetFullscreen(w);
+        }
       }
     }
   }
@@ -620,6 +667,7 @@ void handleMotionNotify(XEvent *ev){
                 (int)(wm.cursor_start_frame_pos.x) + dx, 
                 (int)(wm.cursor_start_frame_pos.y) + dy
     );
+    sendConfigureNotify(client);
     if(client->fullscreen){
       client->fullscreen = false;
       XSetWindowBorderWidth(wm.display, client->frame, wm.conf.borderWidth);
@@ -735,7 +783,6 @@ void handleConfigureRequst(XEvent *ev){
   }
   retileLayout();
 }
-
 
 void handleConfigureNotify(XEvent *ev){
   XConfigureEvent *e = &ev->xconfigure;
@@ -1341,7 +1388,7 @@ void xwmWindowFrame(Window win){
     FGetFixedPartialStrut(win);
   }
   if(!isMenuLike && !isDialogLike && override_redirect){
-    shouldManage = true;
+    shouldManage = false;
   }
 
   if(!shouldManage){
@@ -1457,6 +1504,7 @@ void setFullscreen(Window w){
   wm.client_windows[clientIndex].fullscreen = true;
   wm.client_windows[clientIndex].fullscreenRevertSize = (Vec2){ .x = attr.width, .y = attr.height};
 
+  setFocusToWindow(w);
   Window frame = getFrameWindow(w);
   XSetWindowBorderWidth(wm.display, frame, 0);
   int screen = DefaultScreen(wm.display);
@@ -1469,8 +1517,6 @@ void setFullscreen(Window w){
                     screenWidth,
                     screenHeight);
   XResizeWindow(wm.display, w, screenWidth, screenHeight);
-  XRaiseWindow(wm.display, frame);
-  XSetInputFocus(wm.display, w, RevertToParent, CurrentTime);
   XSync(wm.display, false);
 }
 
@@ -1819,6 +1865,7 @@ void retileLayout(){
 
     if(client_count == 1){
       XMoveWindow(wm.display, master->frame, wm.conf.windowGap - wm.conf.borderWidth, startY + wm.conf.windowGap - wm.conf.borderWidth);
+      sendConfigureNotify(master);
       int frameWidth = wm.screenWidth - 2 * wm.conf.windowGap;
       int frameHeight = availableHeight - 2 * wm.conf.windowGap;
       XResizeWindow(wm.display, master->frame, frameWidth, frameHeight);
@@ -1830,6 +1877,7 @@ void retileLayout(){
       return;
     } 
     XMoveWindow(wm.display, master->frame, wm.conf.windowGap - wm.conf.borderWidth, startY + wm.conf.windowGap - wm.conf.borderWidth);
+    sendConfigureNotify(master);
     int masterFrameWidth = wm.screenWidth/2 - wm.conf.windowGap - (wm.conf.windowGap/2) + wm.conf.masterWindowGap;
     int masterFrameHeight = availableHeight - 2 * wm.conf.windowGap;
     XResizeWindow(wm.display, master->frame, masterFrameWidth, masterFrameHeight);
@@ -1846,6 +1894,7 @@ void retileLayout(){
       int32_t stackY = wm.conf.windowGap + (i - 1) * (stackFrameHeight + wm.conf.windowGap);
 
       XMoveWindow(wm.display, client->frame, stackX - wm.conf.borderWidth, startY + stackY - wm.conf.borderWidth);
+      sendConfigureNotify(client);
       XResizeWindow(wm.display, client->frame, stackFrameWidth - wm.conf.masterWindowGap, stackFrameHeight);
       XResizeWindow(wm.display, client->win, stackFrameWidth - wm.conf.masterWindowGap, stackFrameHeight);
       XSetWindowBorderWidth(wm.display, client->frame, wm.conf.borderWidth);
@@ -1865,6 +1914,7 @@ void retileLayout(){
 
     if(client_count == 1){
       XMoveWindow(wm.display, master->frame, wm.conf.windowGap - wm.conf.borderWidth, startY + wm.conf.windowGap - wm.conf.borderWidth);
+      sendConfigureNotify(master);
       int frameWidth = wm.screenWidth - 2 * wm.conf.windowGap;
       int frameHeight = availableHeight - 2 * wm.conf.windowGap;
       XResizeWindow(wm.display, master->frame, frameWidth, frameHeight);
@@ -1875,6 +1925,7 @@ void retileLayout(){
     }
 
     XMoveWindow(wm.display, master->frame, wm.conf.windowGap - wm.conf.borderWidth, startY + wm.conf.windowGap - wm.conf.borderWidth);
+    sendConfigureNotify(master);
     int masterFrameWidth = wm.screenWidth/2 - wm.conf.windowGap - (wm.conf.windowGap/2) + wm.conf.masterWindowGap;
     int masterFrameHeight = availableHeight - 2 * wm.conf.windowGap;
     XResizeWindow(wm.display, master->frame, masterFrameWidth, masterFrameHeight);
@@ -1903,6 +1954,7 @@ void retileLayout(){
       int y = startY + wm.conf.windowGap + (i - 1) * offsetY;
 
       XMoveWindow(wm.display, client->frame, x - wm.conf.borderWidth, y - wm.conf.borderWidth);
+      sendConfigureNotify(client);
       XResizeWindow(wm.display, client->frame, baseWidth, baseHeight);
       XResizeWindow(wm.display, client->win, baseWidth, baseHeight);
       XSetWindowBorderWidth(wm.display, client->frame, wm.conf.borderWidth);

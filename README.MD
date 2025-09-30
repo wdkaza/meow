@@ -28,6 +28,8 @@ the meow is still slightly far away from being stable to use, i couldnt launch s
 shortly, ⚠️It still has alot of bugs i would like to fix them before providing a way to install it⚠️
 But if you'd like to see this project get finished someday give it a star and i will try my best to finish it⭐
 
+(small note for me for later) Turn off GPU accelerated rendering in web views for steam to work(will fix later)
+
 ## Bugs(not important category, some bugs are outdated)
 
 - [ ] (Priority bug)Killing bolybar will not readjust the config to account for no bar
