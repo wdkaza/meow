@@ -16,9 +16,10 @@ Minimal, no desktop bloat, no unnecessary features. Just clean.<br><br><br>
 - [x] layout IPC module for polybar
 - [x] Some EWMH support  
 - [x] Xrecourses (recompiling)
-- [ ] 4 Corner resizing, and overall better feel for floating layout
-- [ ] Hover with mouse to select windows  
-- [ ] Multiple monitors  
+- [x] 4 Corner resizing, and overall better feel for floating layout
+- [ ] Scratchpads
+- [ ] Hover with mouse to select windows as an option 
+- [ ] Multiple monitor support 
 
 
 # Instalation

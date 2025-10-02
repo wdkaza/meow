@@ -48,6 +48,18 @@ typedef enum{
   WINDOW_LAYOUT_FLOATING
 } WindowLayout;
 
+typedef enum{
+  RESIZE_NONE = 0,
+  RESIZE_BOTTOM_RIGHT,
+  RESIZE_BOTTOM_LEFT,
+  RESIZE_TOP_RIGHT,
+  RESIZE_TOP_LEFT,
+  //RESIZE_BOTTOM,
+  //RESIZE_RIGHT,
+  //RESIZE_TOP,
+  //RESIZE_LEFT
+} ResizeMode;
+
 typedef struct {
   float x, y;
 } Vec2;
@@ -72,6 +84,7 @@ typedef struct {
   bool isMaster;
   int heightInLayout;
   bool forceManage;
+  ResizeMode resizeMode;
   int32_t desktopIndex;
 } Client;
 
@@ -325,6 +338,26 @@ void sendConfigureNotify(Client *c) { // ok this function is kinda pointless TOD
   ev.border_width = 0;
   ev.above = None;
   XSendEvent(wm.display, c->win, false, StructureNotifyMask, (XEvent *)&ev);
+}
+
+ResizeMode getResizeMode(Window frame, int x, int y){
+  XWindowAttributes attr;
+  XGetWindowAttributes(wm.display, frame, &attr);
+
+  int mid_x = attr.width / 2;
+  int mid_y = attr.height / 2;
+
+  bool left = x <= mid_x;
+  bool right = x >= mid_x;
+  bool top = y <= mid_y;
+  bool bottom = y >= mid_y;
+    
+  if(top && left) return RESIZE_TOP_LEFT;
+  if(top && right) return RESIZE_TOP_RIGHT;
+  if(bottom && left) return RESIZE_BOTTOM_LEFT;
+  if(bottom && right) return RESIZE_BOTTOM_RIGHT;
+
+  return RESIZE_NONE; // shouldnt be reached ever but fallback just incase
 }
 
 Window getToplevel(Window w){ // dont know if i will use this fucntion yet
@@ -630,6 +663,8 @@ void handleButtonPress(XEvent *ev){
     setFocusToWindow(targetWindow);
   }
 
+  Window frame = getFrameWindow(e->window);
+
   if((e->state & MOD) && e->button == Button1){
     wm.cursor_start_pos = (Vec2){
       .x = (float)e->x_root,
@@ -637,7 +672,6 @@ void handleButtonPress(XEvent *ev){
     };
 
     XWindowAttributes attr;
-    Window frame = getFrameWindow(e->window);
     XGetWindowAttributes(wm.display, frame, &attr);
 
     wm.cursor_start_frame_pos = (Vec2){
@@ -649,25 +683,49 @@ void handleButtonPress(XEvent *ev){
       .y = (float)attr.height
     };
   }
+  if((e->state & MOD) && e->button == Button3){
+    Client *client = &wm.client_windows[getClientIndex(e->window)];
+    client->resizeMode = getResizeMode(frame, e->x, e->y);
+    XWindowAttributes attr;
+    XGetWindowAttributes(wm.display, frame, &attr);
+    wm.cursor_start_pos.x = e->x_root;
+    wm.cursor_start_pos.y = e->y_root;
+    wm.cursor_start_frame_pos.x = attr.x;
+    wm.cursor_start_frame_pos.y = attr.y;
+    wm.cursor_start_frame_size.x = attr.width;
+    wm.cursor_start_frame_size.y = attr.height;
+  }
 }
 
 void handleMotionNotify(XEvent *ev){
   XMotionEvent *e = &ev->xmotion;
-
   if(!clientWindowExists(e->window)) return;
-
   int dx = e->x_root - (int)wm.cursor_start_pos.x;
   int dy = e->y_root - (int)wm.cursor_start_pos.y;
-
   Window frame = getFrameWindow(e->window);
-
   Client *client = &wm.client_windows[getClientIndex(e->window)];
+  
   if((e->state & MOD) && (e->state & Button1Mask)){
-    XMoveWindow(wm.display, frame, 
-                (int)(wm.cursor_start_frame_pos.x) + dx, 
-                (int)(wm.cursor_start_frame_pos.y) + dy
-    );
+    int newX = (int)(wm.cursor_start_frame_pos.x) + dx;
+    int newY = (int)(wm.cursor_start_frame_pos.y) + dy;
+    
+    XWindowAttributes attr;
+    XGetWindowAttributes(wm.display, frame, &attr);
+    
+    newX = MAX(0, MIN(newX, wm.screenWidth - attr.width));
+    newY = MAX(0, MIN(newY, wm.screenHeight - attr.height));
+    
+    if(CLAMP_FLOATING_WINDOWS){
+      XMoveWindow(wm.display, frame, newX, newY);
+    }
+    else{
+      XMoveWindow(wm.display, frame, 
+                  (int)(wm.cursor_start_frame_pos.x) + dx,
+                  (int)(wm.cursor_start_frame_pos.y) + dy
+                  );
+    }
     sendConfigureNotify(client);
+    
     if(client->fullscreen){
       client->fullscreen = false;
       XSetWindowBorderWidth(wm.display, client->frame, wm.conf.borderWidth);
@@ -678,10 +736,41 @@ void handleMotionNotify(XEvent *ev){
     }
   }
   else if((e->state & MOD) && (e->state & Button3Mask)){
-    int new_width = MAX(1, (int)wm.cursor_start_frame_size.x + dx);
-    int new_height = MAX(1, (int)wm.cursor_start_frame_size.y + dy);
+    int new_x = (int)wm.cursor_start_frame_pos.x;
+    int new_y = (int)wm.cursor_start_frame_pos.y;
+    int new_width = (int)wm.cursor_start_frame_size.x;
+    int new_height = (int)wm.cursor_start_frame_size.y;
     
-    XResizeWindow(wm.display, frame, new_width, new_height);
+    switch(client->resizeMode){
+      case RESIZE_BOTTOM_RIGHT:
+        new_width += dx;
+        new_height += dy;
+        break; 
+      case RESIZE_BOTTOM_LEFT:
+        new_x += dx;
+        new_width -= dx;
+        new_height += dy;
+        break;  
+      case RESIZE_TOP_RIGHT:
+        new_y += dy;
+        new_width += dx;
+        new_height -= dy;
+        break;
+      case RESIZE_TOP_LEFT:
+        new_x += dx;
+        new_y += dy;
+        new_width -= dx;
+        new_height -= dy;
+        break;
+      default:
+        new_width += dx;
+        new_height += dy;
+        break;
+    }
+    new_width = MAX(100, new_width);
+    new_height = MAX(100, new_height);
+    
+    XMoveResizeWindow(wm.display, frame, new_x, new_y, new_width, new_height);
     XResizeWindow(wm.display, e->window, new_width, new_height);
 
     if(client->inLayout){
@@ -689,7 +778,6 @@ void handleMotionNotify(XEvent *ev){
       retileLayout();
     }
   }
-
 }
 
 void updateWindowBorders(Window w){
