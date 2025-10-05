@@ -26,6 +26,7 @@ Minimal, no desktop bloat, no unnecessary features. Just clean.<br><br><br>
 
 Okay, so i had an installationg guide at some point but i quickly found out that  
 the meow is still slightly far away from being stable to use, i couldnt launch steam it behaved weirdly  
+also i have a small perforamnce issue in the wm i didnt fix yet  
 shortly, ⚠️It still has alot of bugs i would like to fix them before providing a way to install it⚠️
 But if you'd like to see this project get finished someday give it a star and i will try my best to finish it⭐
 
@@ -33,9 +34,8 @@ But if you'd like to see this project get finished someday give it a star and i 
 
 ## Bugs(not important category, some bugs are outdated)
 
+- [ ] (#1 my enemy bug)XMoveWindow doesnt send the updated position to the window, cant fix that bug for a long time already, have a bad fix that eats performance alot curently
 - [ ] (Priority bug)Killing bolybar will not readjust the config to account for no bar
-- [ ] (Priority bug)Firefox pop-ups act weird, spawning at old locations
-- [ ] Something is broken with configureRequest, its fixed but new bugs appeared
 - [ ] Xrecourses dont work until you recompile them manually once
 - [x] Small visual issue with fixCascadeLayout function
 - [ ] Opening too many windows in cascade/master having small windowGap, masterGap will result in windows flying off screen

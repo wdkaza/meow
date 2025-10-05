@@ -54,10 +54,6 @@ typedef enum{
   RESIZE_BOTTOM_LEFT,
   RESIZE_TOP_RIGHT,
   RESIZE_TOP_LEFT,
-  //RESIZE_BOTTOM,
-  //RESIZE_RIGHT,
-  //RESIZE_TOP,
-  //RESIZE_LEFT
 } ResizeMode;
 
 typedef struct {
@@ -1363,12 +1359,8 @@ void handleUnmapNotify(XEvent *ev){
     focusNextWindow();
 
     if(!desktopHasWindows(desktopIndex)){
-      for(int32_t i = 0; i < DESKTOP_COUNT; i++){
-        if(desktopHasWindows(i)){
-          changeDesktop(i);
-          break;
-        }
-      }
+      XSetInputFocus(wm.display, wm.root, RevertToParent, CurrentTime);
+      updateActiveWindow(None);
     }
     XSync(wm.display, false);
   }

@@ -11,7 +11,7 @@
 #define BORDER_COLOR 0x1e1e1e
 #define BORDER_FOCUSED_COLOR 0xADD8E6
 #define XRESOURCES_AUTO_RELOAD true
-#define CLAMP_FLOATING_WINDOWS true // wont let floating windows go outside of screen(WIP)
+#define CLAMP_FLOATING_WINDOWS true // wont let floating windows go outside of screen
 
 #define BG_COLOR 0x000000
 
