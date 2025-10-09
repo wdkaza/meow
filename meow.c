@@ -94,6 +94,7 @@ typedef struct {
   uint32_t clients_count;
   int32_t currentDesktop;
 
+  bool mouseHeldDown;
   Vec2 cursor_start_pos;
   Vec2 cursor_start_frame_pos;
   Vec2 cursor_start_frame_size;
@@ -120,6 +121,7 @@ static void xwmWindowFrame(Window win);
 static void xwmWindowUnframe(Window w);
 static void handleButtonPress(XEvent *ev);
 static void handleKeyRelease(XEvent *ev);
+static void handleButtonRelease();
 static void handleMotionNotify(XEvent *ev);
 static void handleKeyPress(XEvent *ev);
 static void handleClientMessage(XEvent *ev);
@@ -141,8 +143,10 @@ static Atom* findAtomPtrRange(Atom* ptr1, Atom* ptr2, Atom val);
 static bool desktopHasWindows(int desktop);
 static void dwm_updateNumlockMask();
 static void dwm_grabKeys(void);
+static Client *getClientFromWindow(Window win);
 static XWM xwm_init();
 static void xwm_run();
+static void sendConfigureNotify(Client *c);
 static void focusNextWindow();
 static void updateWindowBorders(Window w);
 static void applyRules(Client *c);
@@ -162,6 +166,25 @@ static void *inotifyXresources(void *arg);
 static void reloadWindows();
 static void polybarLayoutIPC(int num);
 static XWM wm;
+
+void sendConfigureNotify(Client *c){ // i hate this function
+  XConfigureEvent ev;
+  ev.type = ConfigureNotify;
+  ev.display = wm.display;
+  ev.event = c->win;
+  ev.window = c->win; 
+
+  XWindowAttributes wa;
+  XGetWindowAttributes(wm.display, c->frame, &wa);
+  
+  ev.x = wa.x;
+  ev.y = wa.y;
+  ev.width = wa.width;
+  ev.height = wa.height;
+  ev.border_width = 0;
+  ev.above = None;
+  XSendEvent(wm.display, c->win, false, StructureNotifyMask, (XEvent *)&ev);
+}
 
 void reloadXresources(){
   char prog[255] = "xrdb ~/.Xresources";
@@ -314,26 +337,6 @@ void initDesktops(){
       wm.client_windows[i].desktopIndex = 0;
     }
   }
-}
-
-void sendConfigureNotify(Client *c) { // ok this function is kinda pointless TODO : remove it and fix the bug normally
-  // the problem is that moving the window doesnt call configureNotify and i dont know why, yet, i will remove this later, for now kinda hotfix
-  XConfigureEvent ev;
-  ev.type = ConfigureNotify;
-  ev.display = wm.display;
-  ev.event = c->win;
-  ev.window = c->win; 
-
-  XWindowAttributes wa;
-  XGetWindowAttributes(wm.display, c->frame, &wa);
-  
-  ev.x = wa.x;
-  ev.y = wa.y;
-  ev.width = wa.width;
-  ev.height = wa.height;
-  ev.border_width = 0;
-  ev.above = None;
-  XSendEvent(wm.display, c->win, false, StructureNotifyMask, (XEvent *)&ev);
 }
 
 ResizeMode getResizeMode(Window frame, int x, int y){
@@ -546,6 +549,9 @@ void xwm_run(){
         case ButtonPress:
           handleButtonPress(&ev);
           break;
+        case ButtonRelease:
+          handleButtonRelease();
+          break; 
         case MotionNotify:
           handleMotionNotify(&ev);
           break;
@@ -651,6 +657,8 @@ void updateDesktopProperties(){
 void handleButtonPress(XEvent *ev){
   XButtonEvent *e = &ev->xbutton;
 
+  wm.mouseHeldDown = true;
+
   if(!clientWindowExists(e->window)) return;
 
   Window targetWindow = e->window;
@@ -693,6 +701,23 @@ void handleButtonPress(XEvent *ev){
   }
 }
 
+Client *getClientFromWindow(Window win){
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+    Client *client = &wm.client_windows[i];
+    if(client->win == win || client->frame == win){
+      return client;
+    }
+  }
+  return NULL;
+}
+
+void handleButtonRelease(){
+  if(wm.mouseHeldDown){
+    wm.mouseHeldDown = false;
+    sendConfigureNotify(getClientFromWindow(wm.focused_Window));
+  }
+}
+
 void handleMotionNotify(XEvent *ev){
   XMotionEvent *e = &ev->xmotion;
   if(!clientWindowExists(e->window)) return;
@@ -713,14 +738,21 @@ void handleMotionNotify(XEvent *ev){
     
     if(CLAMP_FLOATING_WINDOWS){
       XMoveWindow(wm.display, frame, newX, newY);
+      XMoveResizeWindow(wm.display, frame, newX, newY, attr.width, attr.height);
+      XMoveResizeWindow(wm.display, getFrameWindow(frame), newX, newY, attr.width, attr.height);
     }
     else{
-      XMoveWindow(wm.display, frame, 
+      XMoveResizeWindow(wm.display, frame, 
                   (int)(wm.cursor_start_frame_pos.x) + dx,
-                  (int)(wm.cursor_start_frame_pos.y) + dy
-                  );
+                  (int)(wm.cursor_start_frame_pos.y) + dy,
+                  attr.width,
+                  attr.height);
+      XMoveResizeWindow(wm.display, getFrameWindow(frame), 
+                  (int)(wm.cursor_start_frame_pos.x) + dx,
+                  (int)(wm.cursor_start_frame_pos.y) + dy,
+                  attr.width,
+                  attr.height);
     }
-    sendConfigureNotify(client);
     
     if(client->fullscreen){
       client->fullscreen = false;
