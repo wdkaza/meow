@@ -148,6 +148,7 @@ static XWM xwm_init();
 static void xwm_run();
 static void sendConfigureNotify(Client *c);
 static void focusNextWindow();
+static void recalculateFixedPartialStrut();
 static void updateWindowBorders(Window w);
 static void applyRules(Client *c);
 static void updateDesktopProperties();
@@ -738,20 +739,11 @@ void handleMotionNotify(XEvent *ev){
     
     if(CLAMP_FLOATING_WINDOWS){
       XMoveWindow(wm.display, frame, newX, newY);
-      XMoveResizeWindow(wm.display, frame, newX, newY, attr.width, attr.height);
-      XMoveResizeWindow(wm.display, getFrameWindow(frame), newX, newY, attr.width, attr.height);
     }
     else{
-      XMoveResizeWindow(wm.display, frame, 
+      XMoveWindow(wm.display, frame, 
                   (int)(wm.cursor_start_frame_pos.x) + dx,
-                  (int)(wm.cursor_start_frame_pos.y) + dy,
-                  attr.width,
-                  attr.height);
-      XMoveResizeWindow(wm.display, getFrameWindow(frame), 
-                  (int)(wm.cursor_start_frame_pos.x) + dx,
-                  (int)(wm.cursor_start_frame_pos.y) + dy,
-                  attr.width,
-                  attr.height);
+                  (int)(wm.cursor_start_frame_pos.y) + dy);
     }
     
     if(client->fullscreen){
@@ -1271,10 +1263,33 @@ void FGetFixedPartialStrut(Window w){
       else if(values[3] > 0){
         wm.conf.bottomBorder = (int)values[3];
       }
-      retileLayout();
     }
     XFree(prop);
   }
+}
+
+void recalculateFixedPartialStrut(){
+  Window rootReturn, parentReturn;
+  Window *children = NULL;
+  unsigned int nchildren = 0;
+
+  wm.conf.topBorder = 0;
+  wm.conf.bottomBorder = 0;
+
+  if(!XQueryTree(wm.display, wm.root, &rootReturn, &parentReturn, &children, &nchildren)){
+    return;
+  }
+
+  for(unsigned int i = 0; i < nchildren; i++){
+    Window w = children[i];
+    XWindowAttributes attr;
+    if(XGetWindowAttributes(wm.display, w, &attr)){
+      if(attr.map_state != IsUnmapped){
+        FGetFixedPartialStrut(w);
+      }
+    }
+  }
+  if(children) XFree(children);
 }
 
 void handleKeyRelease(XEvent *ev){
@@ -1382,6 +1397,21 @@ void handleUnmapNotify(XEvent *ev){
     return;
   }
 
+  Atom strut_atom = XInternAtom(wm.display, "_NET_WM_STRUT_PARTIAL", false);
+  Atom actual_type;
+  int actual_format;
+  unsigned long nitems, bytes_after;
+  unsigned char *prop = NULL;
+
+  if(XGetWindowProperty(wm.display, e->window, strut_atom, 0, 12,
+                        false, XA_CARDINAL, &actual_type, &actual_format,
+                        &nitems, &bytes_after, &prop) == Success){
+    if(prop){
+      XFree(prop);
+      recalculateFixedPartialStrut();
+    }
+  }
+
   if(clientWindowExists(e->window)){
     int32_t idx = getClientIndex(e->window);
     if(idx == -1) return;
@@ -1399,8 +1429,27 @@ void handleUnmapNotify(XEvent *ev){
 }
 
 void handleDestroyNotify(XEvent *ev){
-  (void)ev;
+  XDestroyWindowEvent *e = &ev->xdestroywindow;
+  if(clientWindowExists(e->window)){
+    int32_t id = getClientIndex(e->window);
+    if(id != -1){
+      int32_t desktopIndex = wm.client_windows[id].desktopIndex;
+      xwmWindowUnframe(e->window);
+      focusNextWindow();
+      if(!desktopHasWindows(desktopIndex)){
+        XSetInputFocus(wm.display, wm.root, RevertToParent, CurrentTime);
+        updateActiveWindow(None);
+      }
+    }
+  }
+
+  //maybe a bad way of doing things, TODO : maybe perforamnce nom nom here
+  if(wm.conf.topBorder > 0 || wm.conf.bottomBorder > 0){
+    recalculateFixedPartialStrut();
+  }
+  XSync(wm.display, false);
 }
+
 
 bool clientWindowExists(Window w){
   for(uint32_t i = 0; i < wm.clients_count; i++){

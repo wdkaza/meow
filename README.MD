@@ -21,6 +21,9 @@ Minimal, no desktop bloat, no unnecessary features. Just clean.<br><br><br>
 - [ ] Hover with mouse to select windows as an option 
 - [ ] Multiple monitor support 
 
+when i will rewrite the code some time later, this wm will become a  
+scrolling/tiling one, i really like it but how my wm is coded currently  
+doesnt allot me that
 
 # Instalation
 
