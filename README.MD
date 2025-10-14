@@ -19,33 +19,47 @@ Minimal, no desktop bloat, no unnecessary features. Just clean.<br><br><br>
 - [x] 4 Corner resizing, and overall better feel for floating layout
 - [ ] Scratchpads
 - [ ] Hover with mouse to select windows as an option 
-- [ ] Multiple monitor support 
-
-when i will rewrite the code some time later, this wm will become a  
-scrolling/tiling one, i really like it but how my wm is coded currently  
-doesnt allot me that
+- [ ] Multiple monitor support
 
 # Instalation
 
-Okay, so i had an installationg guide at some point but i quickly found out that  
-the meow is still slightly far away from being stable to use, i couldnt launch steam it behaved weirdly  
-also i have a small perforamnce issue in the wm i didnt fix yet  
-shortly, ⚠️It still has alot of bugs i would like to fix them before providing a way to install it⚠️
-But if you'd like to see this project get finished someday give it a star and i will try my best to finish it⭐
+## 1. Dependencies
+ 
+Arch linux:  
+``` sh
+sudo pacman -S xorg xdotool libxft libxcomposite libxcursor libxrandr  
+```
+ 
+## 2. Building and installing
+ 
+Modify the config-(config.h) to your liking, and after doing that run (with sudo if necessary)  
+ 
+```sh
+make install  
+```
+ 
+## 3. .xinitrc example, for autostart
+ 
+```sh
+[[ -f ~/.Xresources ]] && xrdb -merge -I$HOME ~/.Xresources
+setxkbmap -layout en
+picom &
+exec meow
+```
 
-(small note for me for later) Turn off GPU accelerated rendering in web views for steam to work(will fix later)
+## 4. .Xrecourses example
 
-## Bugs(not important category, some bugs are outdated)
+```sh
+wm.borderWidth: 2
+wm.borderFocused: 0xADD8E6
+wm.borderUnfocused: 0x1e1e1e
+wm.windowGap: 20
+```
 
-- [ ] (#1 my enemy bug)XMoveWindow doesnt send the updated position to the window, cant fix that bug for a long time already, have a bad fix that eats performance alot curently
-- [ ] (Priority bug)Killing bolybar will not readjust the config to account for no bar
-- [ ] Xrecourses dont work until you recompile them manually once
-- [x] Small visual issue with fixCascadeLayout function
-- [ ] Opening too many windows in cascade/master having small windowGap, masterGap will result in windows flying off screen
-- [ ] Cascade code is way too messy xD, doesnt affect performance, etc but would be nice to clean it up heavily
-- [ ] exitWM doesnt clean up memory, resulting in crashing the next session after a few minutes or so
-- [x] Launching firefox(maybe any window) has a small chance to spawn a 0,0 ignoring the wm(temp fix : force quit with ctrl+q and it only happends on startup for me sometimes)
-- [x] Opening a sub window? maybe thats what its called of a window, example in discord [add file] will not map it(thunar) correctly for some reason
-- [x] While polybar is focused(for whatever reason) if you try to fullscreen it, wm crashes
-- [ ] Fullscreening should probably unmap other windows, looks weird with transparancy
-- [ ] TODO. Will be adding more bugs that i encounter later, should have started keeping track of that earlier
+## General information
+
+If you will encounter any bug or will have any questions feel free to add me at discord 'wdd.'  
+Default keybinds are afwul, i would heavily recommend changing them to your own liking   
+You can find more details about the confing inside config.h   
+ 
+There is a small issue with steam, you will need to turn off GPU accelerated rendering for it to work properly
