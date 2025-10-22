@@ -415,6 +415,7 @@ XWM xwm_init(){
   char *wmName = "meow";
   XChangeProperty(wm.display, wmWin, netWmName, utf8Str, 8, PropModeReplace, (unsigned char *)wmName, strlen(wmName));
 
+
   return wm;
 }
 
@@ -488,6 +489,8 @@ void xwm_run(){
   wm.conf.masterWindowGap = 0;
   wm.conf.topBorder = 0;
   wm.conf.bottomBorder = 0;
+
+  reloadXresources();
 
 
   updateActiveWindow(None);
@@ -1147,8 +1150,7 @@ void fullscreen(Arg *arg){
   }
 }
 
-void cycleWindows(Arg *arg){
-  (void)arg;
+void tiledAndFloatingHelper(bool Backwards){
   Window focusedWindow = wm.focused_Window;
 
   int32_t currentIndex = -1;
@@ -1159,63 +1161,98 @@ void cycleWindows(Arg *arg){
     }
   }
 
-  if(wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER || wm.currentLayout == WINDOW_LAYOUT_FLOATING){
-    retileLayout(); // avoids weird looking fullscreen, kind of a half-ass bug fix
+  retileLayout(); // avoids weird looking fullscreen, kind of a half-ass bug fix
 
-    if(currentIndex != -1){
-      for(uint32_t i = 1; i < wm.clients_count; i++){
-        uint32_t nextIndex = (currentIndex + i) % wm.clients_count;
-        if(wm.client_windows[nextIndex].desktopIndex == wm.currentDesktop){
-          setFocusToWindow(wm.client_windows[nextIndex].win);
-          break;
-        }
+  if(currentIndex != -1){
+    for(uint32_t i = 1; i < wm.clients_count; i++){
+      uint32_t Index;
+      if(Backwards){
+        Index = (currentIndex - i + wm.clients_count) % wm.clients_count;
       }
+      else{
+        Index = (currentIndex + i) % wm.clients_count;
+      }
+      if(wm.client_windows[Index].desktopIndex == wm.currentDesktop){
+        setFocusToWindow(wm.client_windows[Index].win);
+        break;
+      }
+    }
+  } 
+}
+
+void cascadeHelper(){
+  Window focusedWindow = wm.focused_Window;
+
+  int32_t currentIndex = -1;
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+  if((wm.client_windows[i].win == focusedWindow || wm.client_windows[i].frame == focusedWindow) && wm.client_windows[i].desktopIndex == wm.currentDesktop){
+    currentIndex = i;
+    break;
     }
   }
-  // yeah... i know its a bad way of doing it..
-  else if(wm.currentLayout == WINDOW_LAYOUT_TILED_CASCADE){
-    fixFocusForCascade();
-    retileLayout();
-    int32_t masterIndex = -1;
-    int32_t lastClientIndex = -1;
+  fixFocusForCascade();
+  retileLayout();
+  int32_t masterIndex = -1;
+  int32_t lastClientIndex = -1;
 
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+    if(wm.client_windows[i].desktopIndex == wm.currentDesktop && wm.client_windows[i].inLayout){
+      if(masterIndex == -1){
+        masterIndex = i;
+      }
+      lastClientIndex = i;
+    }
+  }
+
+  int32_t cycle[wm.clients_count];
+  uint32_t cycleCount = 0;
+
+  if(masterIndex != -1) cycle[cycleCount++] = masterIndex;
+  if(lastClientIndex != -1 && lastClientIndex != masterIndex) cycle[cycleCount++] = lastClientIndex;
+
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+    if(wm.client_windows[i].desktopIndex == wm.currentDesktop && !wm.client_windows[i].inLayout){
+      cycle[cycleCount++] = i;
+    }
+  }
+
+  bool found = false;
+  for(uint32_t i = 0; i < cycleCount; i++){
+    if(cycle[i] == currentIndex){
+      uint32_t next = (i + 1) % cycleCount;
+      setFocusToWindow(wm.client_windows[cycle[next]].win);
+      found = true;
+    }
+  }
+  if(!found){
     for(uint32_t i = 0; i < wm.clients_count; i++){
       if(wm.client_windows[i].desktopIndex == wm.currentDesktop && wm.client_windows[i].inLayout){
-        if(masterIndex == -1){
-          masterIndex = i;
-        }
-        lastClientIndex = i;
+        setFocusToWindow(wm.client_windows[i].win);
       }
     }
+    setFocusToWindow(wm.client_windows[cycle[0]].win);
+  }
+}
 
-    int32_t cycle[wm.clients_count];
-    uint32_t cycleCount = 0;
+void cycleWindows(Arg *arg){
+  (void)arg;
 
-    if(masterIndex != -1) cycle[cycleCount++] = masterIndex;
-    if(lastClientIndex != -1 && lastClientIndex != masterIndex) cycle[cycleCount++] = lastClientIndex;
+  if(wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER || wm.currentLayout == WINDOW_LAYOUT_FLOATING){
+    tiledAndFloatingHelper(false);
+  }
+  else if(wm.currentLayout == WINDOW_LAYOUT_TILED_CASCADE || wm.currentLayout == WINDOW_LAYOUT_FLOATING){
+    cascadeHelper();
+  } 
+}
 
-    for(uint32_t i = 0; i < wm.clients_count; i++){
-      if(wm.client_windows[i].desktopIndex == wm.currentDesktop && !wm.client_windows[i].inLayout){
-        cycle[cycleCount++] = i;
-      }
-    }
+void cycleWindowsBackwards(Arg *arg){
+  (void)arg;
 
-    bool found = false;
-    for(uint32_t i = 0; i < cycleCount; i++){
-      if(cycle[i] == currentIndex){
-        uint32_t next = (i + 1) % cycleCount;
-        setFocusToWindow(wm.client_windows[cycle[next]].win);
-        found = true;
-      }
-    }
-    if(!found){
-      for(uint32_t i = 0; i < wm.clients_count; i++){
-        if(wm.client_windows[i].desktopIndex == wm.currentDesktop && wm.client_windows[i].inLayout){
-          setFocusToWindow(wm.client_windows[i].win);
-        }
-      }
-      setFocusToWindow(wm.client_windows[cycle[0]].win);
-    }
+  if(wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER || wm.currentLayout == WINDOW_LAYOUT_FLOATING){
+    tiledAndFloatingHelper(true);
+  }
+  else if(wm.currentLayout == WINDOW_LAYOUT_TILED_CASCADE || wm.currentLayout == WINDOW_LAYOUT_FLOATING){
+    cascadeHelper();
   }
 }
 

@@ -51,6 +51,7 @@ static char *screenshot[] = {"scrot", NULL};
 // moveSlaveStackBack
 // resetMasterGapSize     (sets the gap to 0, master window takes half ot the screen)
 // cycleWindows
+// cycleWindowsBackwards
 // fullscreen             
 // setWindowLayoutTiled
 //
@@ -93,6 +94,7 @@ struct KeyEvent keys[] = {
   {MOD, KeyO,      setWindowLayoutCascase,  {0}},
 
   {MOD|ShiftMask,KeyQ, exitWM,              {0}},
+  {MOD|ShiftMask, KeyTab, cycleWindowsBackwards, {0}},
 
 
 

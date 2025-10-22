@@ -208,6 +208,7 @@ void fullscreen(Arg *arg);
 void disableBar(Arg *arg);
 void enableBar(Arg *arg);
 void cycleWindows(Arg *arg);
+void cycleWindowsBackwards(Arg *arg);
 void switchDesktop(Arg *arg);
 void transferWindowToDesktop(Arg *arg);
 // ignore
