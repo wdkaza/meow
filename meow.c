@@ -594,8 +594,14 @@ void handleEnterNotify(XEvent *ev){
     Client *client = getClientFromWindow(e->window);
     if(client){
       if(wm.focused_Window == client->win) return;
-      setFocusToWindow(client->win);
-      updateWindowBorders(client->win);
+      if(wm.currentLayout == WINDOW_LAYOUT_TILED_CASCADE){
+        XSetInputFocus(wm.display, client->win, RevertToParent, CurrentTime);
+        updateWindowBorders(client->win);
+        updateActiveWindow(client->win);
+      }
+      else{
+        setFocusToWindow(client->win);
+      }
       return;
     }
     //handle childern
@@ -605,8 +611,14 @@ void handleEnterNotify(XEvent *ev){
       if(id >= 0 && (uint32_t)id < wm.clients_count){
         Client *clientChild = &wm.client_windows[id];
         if(wm.focused_Window == clientChild->win) return;
-        setFocusToWindow(clientChild->win);
-        updateWindowBorders(clientChild->win);
+        if(wm.currentLayout == WINDOW_LAYOUT_TILED_CASCADE){
+          XSetInputFocus(wm.display, client->win, RevertToParent, CurrentTime);
+          updateWindowBorders(client->win);
+          updateActiveWindow(client->win);
+        }
+        else{
+          setFocusToWindow(clientChild->win);
+        }
         return;
       }
     }
@@ -1100,6 +1112,18 @@ void setWindowLayoutTiled(Arg *arg){
   (void)arg;
 
   wm.currentLayout = WINDOW_LAYOUT_TILED_MASTER;
+  for(uint32_t i = 0; i < wm.clients_count; i++){
+    wm.client_windows[i].inLayout = true;
+    if(wm.client_windows[i].fullscreen){
+      unsetFullscreen(wm.client_windows[i].frame);
+    }
+  }
+  retileLayout();
+}
+
+void setWindowLayoutHorizontal(Arg *arg){
+  (void)arg;
+  wm.currentLayout = WINDOW_LAYOUT_HORIZONTAL_MASTER;
   for(uint32_t i = 0; i < wm.clients_count; i++){
     wm.client_windows[i].inLayout = true;
     if(wm.client_windows[i].fullscreen){
@@ -2145,6 +2169,61 @@ void retileLayout(){
     }
     XSync(wm.display, false);
   }
+  else if(wm.currentLayout == WINDOW_LAYOUT_HORIZONTAL_MASTER){
+    Client *master = clients[0];
+
+    if(client_count == 1){
+      XMoveWindow(wm.display, master->frame, wm.conf.windowGap - wm.conf.borderWidth, startY + wm.conf.windowGap - wm.conf.borderWidth);
+      sendConfigureNotify(master);
+      int frameWidth = wm.screenWidth - 2 * wm.conf.windowGap;
+      int frameHeight = availableHeight - 2 * wm.conf.windowGap;
+      XResizeWindow(wm.display, master->frame, frameWidth, frameHeight);
+      XResizeWindow(wm.display, master->win, frameWidth, frameHeight);
+      XSetWindowBorderWidth(wm.display, master->frame, wm.conf.borderWidth);
+      if(master->fullscreen){
+        master->fullscreen = false;
+      }
+      return;
+    }
+
+    int baseStackHeight = availableHeight / 2;
+    int stackHeight = baseStackHeight + wm.conf.masterWindowGap;
+    int masterHeight = availableHeight - stackHeight - (2 * wm.conf.windowGap);
+
+    int masterX = wm.conf.windowGap;
+    int masterY = startY + stackHeight + wm.conf.windowGap;
+    int masterW = wm.screenWidth - (2 * wm.conf.windowGap);
+    int masterH = masterHeight;
+
+    XMoveWindow(wm.display, master->frame, masterX - wm.conf.borderWidth, masterY - wm.conf.borderWidth);
+    XResizeWindow(wm.display, master->frame, masterW, masterH);
+    XResizeWindow(wm.display, master->win,   masterW, masterH);
+    XSetWindowBorderWidth(wm.display, master->frame, wm.conf.borderWidth);
+    sendConfigureNotify(master);
+    master->fullscreen = false;
+
+    int stackY = startY + wm.conf.windowGap;
+    int stackX = wm.conf.windowGap;
+    int stackW = (wm.screenWidth - (2 * wm.conf.windowGap)) / (client_count - 1);
+    int stackH = stackHeight - (2 * wm.conf.windowGap);
+
+    for(uint32_t i = 1; i < client_count; i++){
+      Client *client = clients[i];
+      int startx = stackX + (stackW * (i - 1));
+      int width = (i == client_count - 1) ? (uint32_t)stackW : stackW - wm.conf.windowGap;
+      XMoveWindow(wm.display, client->frame, startx - wm.conf.borderWidth, stackY - wm.conf.borderWidth);
+      XResizeWindow(wm.display, client->frame, width, stackH);
+      XResizeWindow(wm.display, client->win, width, stackH);
+      XSetWindowBorderWidth(wm.display, client->frame, wm.conf.borderWidth);
+      sendConfigureNotify(client);
+      client->fullscreen = false;
+    }
+
+    if(wm.focused_Window != None && clientWindowExists(wm.focused_Window)){
+        updateWindowBorders(wm.focused_Window);
+    }
+    XSync(wm.display, false);
+  }
   else if(wm.currentLayout == WINDOW_LAYOUT_TILED_CASCADE){
     Client *master = clients[0];
 
@@ -2202,8 +2281,7 @@ void retileLayout(){
       updateWindowBorders(wm.focused_Window);
     }
     XSync(wm.display, false);
-}
-
+  }
 }
 
 void applyRules(Client *c){

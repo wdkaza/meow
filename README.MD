@@ -19,6 +19,8 @@ Minimal, no desktop bloat, no unnecessary features. Just clean.<br><br><br>
 - [x] 4 Corner resizing, and overall better feel for floating layout
 - [ ] Scratchpads
 - [x] Hover with mouse to select windows as an option 
+- [ ] Swap master stack with slave stack
+- [ ] Configuring each slave's height/width individually
 - [ ] Multiple monitor support
 
 # Instalation

@@ -199,6 +199,7 @@ void resetMasterGapSize(Arg *arg);
 void setWindowLayoutTiled(Arg *arg);
 void setWindowLayoutFloating(Arg *arg);
 void setWindowLayoutCascase(Arg *arg);
+void setWindowLayoutHorizontal(Arg *arg);
 void moveSlavesStackForward(Arg *arg);
 void moveSlavesStackBack(Arg *arg);
 void moveWindowUp(Arg *arg);
