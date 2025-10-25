@@ -11,6 +11,7 @@
 #define BORDER_COLOR 0x1e1e1e
 #define BORDER_FOCUSED_COLOR 0xADD8E6
 #define XRESOURCES_AUTO_RELOAD true
+#define FOCUS_WINDOWS_UNDER_MOUSE true
 #define CLAMP_FLOATING_WINDOWS true // wont let floating windows go outside of screen
 #define AUTOMATICLY_PUT_FLOATING_WINDOWS_INTO_LAYOUT true // (WIP) bad name btw, will change later xD
 

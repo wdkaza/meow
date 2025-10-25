@@ -18,7 +18,7 @@ Minimal, no desktop bloat, no unnecessary features. Just clean.<br><br><br>
 - [x] Xrecourses (recompiling)
 - [x] 4 Corner resizing, and overall better feel for floating layout
 - [ ] Scratchpads
-- [ ] Hover with mouse to select windows as an option 
+- [x] Hover with mouse to select windows as an option 
 - [ ] Multiple monitor support
 
 # Instalation
@@ -47,7 +47,7 @@ picom &
 exec meow
 ```
 
-## 4. .Xrecourses example
+## 4. .Xresources example
 
 ```sh
 wm.borderWidth: 2

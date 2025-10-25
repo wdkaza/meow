@@ -45,6 +45,7 @@ static unsigned int numlockmask = 0;
 typedef enum{
   WINDOW_LAYOUT_TILED_MASTER = 0,
   WINDOW_LAYOUT_TILED_CASCADE,
+  WINDOW_LAYOUT_HORIZONTAL_MASTER,
   WINDOW_LAYOUT_FLOATING
 } WindowLayout;
 
@@ -124,6 +125,7 @@ static void handleKeyRelease(XEvent *ev);
 static void handleButtonRelease();
 static void handleMotionNotify(XEvent *ev);
 static void handleKeyPress(XEvent *ev);
+static void handleEnterNotify(XEvent *ev);
 static void handleClientMessage(XEvent *ev);
 static void retileLayout();
 static void sendClientMessage(Window w, Atom a);
@@ -465,6 +467,7 @@ void dwm_grabKeys(void)
 }
 
 void xwm_run(){
+  // TOOD : some code should be moved out of run to init, because wth is this mess
   wm.running = true;
 
   Cursor cursor = XCreateFontCursor(wm.display, XC_left_ptr);
@@ -559,6 +562,10 @@ void xwm_run(){
         case MotionNotify:
           handleMotionNotify(&ev);
           break;
+        case EnterNotify:
+          handleEnterNotify(&ev);
+          needsUpdate = true;
+          break;
         case KeyPress:
           handleKeyPress(&ev);
           needsUpdate = true;
@@ -575,6 +582,37 @@ void xwm_run(){
       needsUpdate = false;
       lastUpdate = time(NULL);
     }
+  }
+}
+
+void handleEnterNotify(XEvent *ev){
+  if(FOCUS_WINDOWS_UNDER_MOUSE){
+    XCrossingEvent *e = &ev->xcrossing; 
+    if(wm.mouseHeldDown) return;
+    if(e->window == wm.root) return;
+
+    Client *client = getClientFromWindow(e->window);
+    if(client){
+      if(wm.focused_Window == client->win) return;
+      setFocusToWindow(client->win);
+      updateWindowBorders(client->win);
+      return;
+    }
+    //handle childern
+    Window frame = getFrameWindow(e->window);
+    if(frame != None){
+      int32_t id = getClientIndex(frame);
+      if(id >= 0 && (uint32_t)id < wm.clients_count){
+        Client *clientChild = &wm.client_windows[id];
+        if(wm.focused_Window == clientChild->win) return;
+        setFocusToWindow(clientChild->win);
+        updateWindowBorders(clientChild->win);
+        return;
+      }
+    }
+  }
+  else{
+    return;
   }
 }
 
@@ -1237,7 +1275,7 @@ void cascadeHelper(){
 void cycleWindows(Arg *arg){
   (void)arg;
 
-  if(wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER || wm.currentLayout == WINDOW_LAYOUT_FLOATING){
+  if(wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER || wm.currentLayout == WINDOW_LAYOUT_HORIZONTAL_MASTER || wm.currentLayout == WINDOW_LAYOUT_FLOATING){
     tiledAndFloatingHelper(false);
   }
   else if(wm.currentLayout == WINDOW_LAYOUT_TILED_CASCADE || wm.currentLayout == WINDOW_LAYOUT_FLOATING){
@@ -1248,7 +1286,7 @@ void cycleWindows(Arg *arg){
 void cycleWindowsBackwards(Arg *arg){
   (void)arg;
 
-  if(wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER || wm.currentLayout == WINDOW_LAYOUT_FLOATING){
+  if(wm.currentLayout == WINDOW_LAYOUT_TILED_MASTER || wm.currentLayout == WINDOW_LAYOUT_HORIZONTAL_MASTER || wm.currentLayout == WINDOW_LAYOUT_FLOATING){
     tiledAndFloatingHelper(true);
   }
   else if(wm.currentLayout == WINDOW_LAYOUT_TILED_CASCADE || wm.currentLayout == WINDOW_LAYOUT_FLOATING){
@@ -1625,7 +1663,7 @@ void xwmWindowFrame(Window win){
 
   XSelectInput(wm.display, winFrame,
                SubstructureRedirectMask | SubstructureNotifyMask | StructureNotifyMask |
-               ExposureMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask);
+               ExposureMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask | EnterWindowMask);
 
   XAddToSaveSet(wm.display, win);
 
@@ -2244,6 +2282,8 @@ bool isLayoutTiling(WindowLayout layout){
     case WINDOW_LAYOUT_TILED_MASTER:
       return true;
     case WINDOW_LAYOUT_TILED_CASCADE:
+      return true;
+    case WINDOW_LAYOUT_HORIZONTAL_MASTER:
       return true;
     case WINDOW_LAYOUT_FLOATING:
       return false;
