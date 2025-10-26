@@ -13,7 +13,7 @@
 #define XRESOURCES_AUTO_RELOAD true
 #define FOCUS_WINDOWS_UNDER_MOUSE true // a bit unstable when switchign desktops, but works fine
 #define CLAMP_FLOATING_WINDOWS true // wont let floating windows go outside of screen
-#define AUTOMATICLY_PUT_FLOATING_WINDOWS_INTO_LAYOUT true // (WIP) bad name btw, will change later xD
+#define AUTOMATICLY_RAISE_WINDOWS_WITH_MOUSE false
 
 #define BG_COLOR 0x000000
 

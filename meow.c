@@ -590,17 +590,18 @@ void handleEnterNotify(XEvent *ev){
     XCrossingEvent *e = &ev->xcrossing; 
     if(wm.mouseHeldDown) return;
     if(e->window == wm.root) return;
+    if(e->mode != NotifyNormal) return;
 
     Client *client = getClientFromWindow(e->window);
     if(client){
       if(wm.focused_Window == client->win) return;
-      if(wm.currentLayout == WINDOW_LAYOUT_TILED_CASCADE){
+      if(AUTOMATICLY_RAISE_WINDOWS_WITH_MOUSE){
+        setFocusToWindow(client->win);
+      }
+      else{
         XSetInputFocus(wm.display, client->win, RevertToParent, CurrentTime);
         updateWindowBorders(client->win);
         updateActiveWindow(client->win);
-      }
-      else{
-        setFocusToWindow(client->win);
       }
       return;
     }
@@ -611,13 +612,13 @@ void handleEnterNotify(XEvent *ev){
       if(id >= 0 && (uint32_t)id < wm.clients_count){
         Client *clientChild = &wm.client_windows[id];
         if(wm.focused_Window == clientChild->win) return;
-        if(wm.currentLayout == WINDOW_LAYOUT_TILED_CASCADE){
+        if(AUTOMATICLY_RAISE_WINDOWS_WITH_MOUSE){
+          setFocusToWindow(client->win);
+        }
+        else{
           XSetInputFocus(wm.display, client->win, RevertToParent, CurrentTime);
           updateWindowBorders(client->win);
           updateActiveWindow(client->win);
-        }
-        else{
-          setFocusToWindow(clientChild->win);
         }
         return;
       }
