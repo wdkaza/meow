@@ -69,6 +69,7 @@ typedef struct{
   uint32_t masterWindowGap;
   int topBorder;
   int bottomBorder;
+  bool masterLeft;
 } Configuration;
 
 
@@ -492,6 +493,7 @@ void xwm_run(){
   wm.conf.masterWindowGap = 0;
   wm.conf.topBorder = 0;
   wm.conf.bottomBorder = 0;
+  wm.conf.masterLeft = true;
 
   reloadXresources();
 
@@ -894,6 +896,12 @@ void setFocusToWindow(Window w){
     updateWindowBorders(None);
     updateActiveWindow(None);
   }
+}
+
+void toggleMasterSide(Arg *arg){
+  (void)arg;
+  wm.conf.masterLeft = !wm.conf.masterLeft;
+  retileLayout();
 }
 
 void focusNextWindow(){
@@ -2137,7 +2145,16 @@ void retileLayout(){
       }
       return;
     } 
-    XMoveWindow(wm.display, master->frame, wm.conf.windowGap - wm.conf.borderWidth, startY + wm.conf.windowGap - wm.conf.borderWidth);
+    int32_t masterX, stackX;
+    if(wm.conf.masterLeft){
+      masterX = wm.conf.windowGap;
+      stackX = (wm.screenWidth / 2 + (wm.conf.windowGap / 2)) + wm.conf.masterWindowGap;
+    }
+    else{
+      masterX = (wm.screenWidth / 2 + (wm.conf.windowGap / 2)) - wm.conf.masterWindowGap;
+      stackX = wm.conf.windowGap;
+    }
+    XMoveWindow(wm.display, master->frame, masterX - wm.conf.borderWidth, startY + wm.conf.windowGap - wm.conf.borderWidth);
     sendConfigureNotify(master);
     int masterFrameWidth = wm.screenWidth/2 - wm.conf.windowGap - (wm.conf.windowGap/2) + wm.conf.masterWindowGap;
     int masterFrameHeight = availableHeight - 2 * wm.conf.windowGap;
@@ -2146,9 +2163,8 @@ void retileLayout(){
     XSetWindowBorderWidth(wm.display, master->frame, wm.conf.borderWidth);
     master->fullscreen = false;
 
-    int32_t stackFrameWidth = wm.screenWidth/2 - wm.conf.windowGap - (wm.conf.windowGap / 2);
+    int32_t stackFrameWidth = wm.screenWidth/2 - wm.conf.windowGap - (wm.conf.windowGap / 2) - wm.conf.masterWindowGap;
     int32_t stackFrameHeight = (availableHeight - ((client_count) * wm.conf.windowGap)) / (client_count - 1);
-    int32_t stackX = (wm.screenWidth / 2 + (wm.conf.windowGap / 2)) + wm.conf.masterWindowGap;
 
     for(uint32_t i = 1; i < client_count; i++){
       Client *client = clients[i];
@@ -2156,8 +2172,8 @@ void retileLayout(){
 
       XMoveWindow(wm.display, client->frame, stackX - wm.conf.borderWidth, startY + stackY - wm.conf.borderWidth);
       sendConfigureNotify(client);
-      XResizeWindow(wm.display, client->frame, stackFrameWidth - wm.conf.masterWindowGap, stackFrameHeight);
-      XResizeWindow(wm.display, client->win, stackFrameWidth - wm.conf.masterWindowGap, stackFrameHeight);
+      XResizeWindow(wm.display, client->frame, stackFrameWidth, stackFrameHeight);
+      XResizeWindow(wm.display, client->win, stackFrameWidth, stackFrameHeight);
       XSetWindowBorderWidth(wm.display, client->frame, wm.conf.borderWidth);
 
       if(client->fullscreen){
@@ -2192,18 +2208,27 @@ void retileLayout(){
     int masterHeight = availableHeight - stackHeight - (2 * wm.conf.windowGap);
 
     int masterX = wm.conf.windowGap;
-    int masterY = startY + stackHeight + wm.conf.windowGap;
+    int masterY, stackY;
+    
+    if(wm.conf.masterLeft){
+      masterY = startY + stackHeight + wm.conf.windowGap;
+      stackY = startY + wm.conf.windowGap;
+    }
+    else{
+      masterY = startY + wm.conf.windowGap;
+      stackY = startY + masterHeight + (2 * wm.conf.windowGap);
+    }
+    
     int masterW = wm.screenWidth - (2 * wm.conf.windowGap);
     int masterH = masterHeight;
 
     XMoveWindow(wm.display, master->frame, masterX - wm.conf.borderWidth, masterY - wm.conf.borderWidth);
     XResizeWindow(wm.display, master->frame, masterW, masterH);
-    XResizeWindow(wm.display, master->win,   masterW, masterH);
+    XResizeWindow(wm.display, master->win, masterW, masterH);
     XSetWindowBorderWidth(wm.display, master->frame, wm.conf.borderWidth);
     sendConfigureNotify(master);
     master->fullscreen = false;
 
-    int stackY = startY + wm.conf.windowGap;
     int stackX = wm.conf.windowGap;
     int stackW = (wm.screenWidth - (2 * wm.conf.windowGap)) / (client_count - 1);
     int stackH = stackHeight - (2 * wm.conf.windowGap);
@@ -2240,16 +2265,25 @@ void retileLayout(){
       return;
     }
 
-    XMoveWindow(wm.display, master->frame, wm.conf.windowGap - wm.conf.borderWidth, startY + wm.conf.windowGap - wm.conf.borderWidth);
-    sendConfigureNotify(master);
+    int32_t masterX, stackX;
     int masterFrameWidth = wm.screenWidth/2 - wm.conf.windowGap - (wm.conf.windowGap/2) + wm.conf.masterWindowGap;
+    
+    if(wm.conf.masterLeft){
+      masterX = wm.conf.windowGap;
+      stackX = (wm.screenWidth / 2 + (wm.conf.windowGap / 3)) + wm.conf.masterWindowGap;
+    }
+    else{
+      masterX = (wm.screenWidth / 2 + (wm.conf.windowGap / 3)) - wm.conf.masterWindowGap;
+      stackX = wm.conf.windowGap;
+    }
+
+    XMoveWindow(wm.display, master->frame, masterX - wm.conf.borderWidth, startY + wm.conf.windowGap - wm.conf.borderWidth);
+    sendConfigureNotify(master);
     int masterFrameHeight = availableHeight - 2 * wm.conf.windowGap;
     XResizeWindow(wm.display, master->frame, masterFrameWidth, masterFrameHeight);
     XResizeWindow(wm.display, master->win, masterFrameWidth, masterFrameHeight);
     XSetWindowBorderWidth(wm.display, master->frame, wm.conf.borderWidth);
     master->fullscreen = false;
-
-    int stackX = (wm.screenWidth / 2 + (wm.conf.windowGap / 3)) + wm.conf.masterWindowGap;
 
     int offsetX = wm.conf.windowGap / 2;
     int offsetY = wm.conf.windowGap / 2;
@@ -2257,7 +2291,7 @@ void retileLayout(){
     if(offsetX < 20) offsetX = 20;
     if(offsetY < 20) offsetY = 20;
 
-    int baseWidth  = wm.screenWidth - stackX - wm.conf.windowGap - (client_count - 2) * offsetX;
+    int baseWidth  = (wm.screenWidth - masterFrameWidth - (2 * wm.conf.windowGap) - (wm.conf.windowGap / 3) - (client_count - 2) * offsetX) - wm.conf.windowGap;
     int baseHeight = availableHeight - 2 * wm.conf.windowGap - (client_count - 2) * offsetY;
 
     if(baseWidth < 50) baseWidth = 50;

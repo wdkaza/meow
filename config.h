@@ -11,7 +11,7 @@
 #define BORDER_COLOR 0x1e1e1e
 #define BORDER_FOCUSED_COLOR 0xADD8E6
 #define XRESOURCES_AUTO_RELOAD true
-#define FOCUS_WINDOWS_UNDER_MOUSE true // a bit unstable when switchign desktops, but works fine
+#define FOCUS_WINDOWS_UNDER_MOUSE true
 #define CLAMP_FLOATING_WINDOWS true // wont let floating windows go outside of screen
 #define AUTOMATICLY_RAISE_WINDOWS_WITH_MOUSE false
 
@@ -95,6 +95,7 @@ struct KeyEvent keys[] = {
   {MOD, KeyR,      setWindowLayoutTiled,    {0}},
   {MOD, KeyT,      setWindowLayoutFloating, {0}},
   {MOD, KeyO,      setWindowLayoutCascase,  {0}},
+  {MOD, KeyM,      toggleMasterSide,        {0}},
   {MOD, KeyG,   setWindowLayoutHorizontal,  {0}},
 
   {MOD|ShiftMask,KeyQ, exitWM,              {0}},
