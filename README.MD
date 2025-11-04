@@ -58,6 +58,16 @@ wm.borderUnfocused: 0x1e1e1e
 wm.windowGap: 20
 ```
 
+## Polybar IPC
+```sh
+[module/meow_layout]
+type = custom/ipc
+hook-0 = "echo Master"
+hook-1 = "echo Cascade"
+hook-2 = "echo Horizontal"
+hook-3 = "echo Floating"
+initial = 1;
+```
 ## General information
 
 If you will encounter any bug or will have any questions feel free to add me at discord 'wdd.'  

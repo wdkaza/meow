@@ -385,7 +385,6 @@ XWM xwm_init(){
     exit(1);
   }
 
-
   wm.root = DefaultRootWindow(wm.display);
   int screen = DefaultScreen(wm.display);
   wm.screenWidth = DisplayWidth(wm.display, screen);
@@ -1810,7 +1809,7 @@ void unsetFullscreen(Window w){
   retileLayout();
 }
 
-bool desktopHasWindows(int desktop){
+bool desktopHasWindows(int desktop){ // TODO : first desktop always has windows, visual bug
   for(uint32_t i = 0; i < wm.clients_count; i++){
     if(wm.client_windows[i].desktopIndex == desktop) return true;
   }
