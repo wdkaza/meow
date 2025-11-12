@@ -417,6 +417,29 @@ XWM xwm_init(){
   char *wmName = "meow";
   XChangeProperty(wm.display, wmWin, netWmName, utf8Str, 8, PropModeReplace, (unsigned char *)wmName, strlen(wmName));
 
+  wm.running = true;
+  wm.clients_count = 0;
+  wm.cursor_start_frame_size = (Vec2){ .x = 0.0f, .y = 0.0f};
+  wm.cursor_start_frame_pos = (Vec2){ .x = 0.0f, .y = 0.0f};
+  wm.cursor_start_pos = (Vec2){ .x = 0.0f, .y = 0.0f};
+  wm.currentLayout = WINDOW_LAYOUT_TILED_MASTER;
+  wm.currentDesktop = 1;
+  wm.ATOM_WM_PROTOCOLS = XInternAtom(wm.display, "WM_PROTOCOLS", false);
+  wm.ATOM_WM_DELETE_WINDOW = XInternAtom(wm.display, "WM_DELETE_WINDOW", false);
+  wm.ATOM_NET_ACTIVE_WINDOW = XInternAtom(wm.display, "_NET_ACTIVE_WINDOW", false);
+
+  wm.conf.windowGap = START_WINDOW_GAP;
+  wm.conf.masterWindowGap = 0;
+  wm.conf.topBorder = 0;
+  wm.conf.bottomBorder = 0;
+  wm.conf.masterLeft = true;
+
+
+  Cursor cursor = XCreateFontCursor(wm.display, XC_left_ptr);
+  XDefineCursor(wm.display, wm.root, cursor);
+
+  XSelectInput(wm.display, wm.root, SubstructureRedirectMask | SubstructureNotifyMask);
+  XSync(wm.display, false);
 
   return wm;
 }
@@ -467,39 +490,10 @@ void dwm_grabKeys(void)
 }
 
 void xwm_run(){
-  // TOOD : some code should be moved out of run to init, because wth is this mess
-  wm.running = true;
-
-  Cursor cursor = XCreateFontCursor(wm.display, XC_left_ptr);
-  XDefineCursor(wm.display, wm.root, cursor);
-
-  XSelectInput(wm.display, wm.root, SubstructureRedirectMask | SubstructureNotifyMask);
-  XSync(wm.display, false);
-
   dwm_grabKeys();
-
-  wm.clients_count = 0;
-  wm.cursor_start_frame_size = (Vec2){ .x = 0.0f, .y = 0.0f};
-  wm.cursor_start_frame_pos = (Vec2){ .x = 0.0f, .y = 0.0f};
-  wm.cursor_start_pos = (Vec2){ .x = 0.0f, .y = 0.0f};
-  wm.currentLayout = WINDOW_LAYOUT_TILED_MASTER;
-  wm.currentDesktop = 1;
-  wm.ATOM_WM_PROTOCOLS = XInternAtom(wm.display, "WM_PROTOCOLS", false);
-  wm.ATOM_WM_DELETE_WINDOW = XInternAtom(wm.display, "WM_DELETE_WINDOW", false);
-  wm.ATOM_NET_ACTIVE_WINDOW = XInternAtom(wm.display, "_NET_ACTIVE_WINDOW", false);
-
-  wm.conf.windowGap = START_WINDOW_GAP;
-  wm.conf.masterWindowGap = 0;
-  wm.conf.topBorder = 0;
-  wm.conf.bottomBorder = 0;
-  wm.conf.masterLeft = true;
-
   reloadXresources();
-
-
   updateActiveWindow(None);
   updateDesktopProperties();
-
   initDesktops();
 
   int xfd = XConnectionNumber(wm.display);
@@ -916,13 +910,10 @@ void focusNextWindow(){
     }
   }
 
-  for(uint32_t i = 0; i < wm.clients_count; i++){
-    setFocusToWindow(wm.client_windows[i].win);
-    return;
-  }
 
   XSetInputFocus(wm.display, wm.root, RevertToParent, CurrentTime);
   updateWindowBorders(None);
+  updateActiveWindow(None);
 }
 
 void handleConfigureRequst(XEvent *ev){
